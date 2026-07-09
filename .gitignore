@@ -1,0 +1,40 @@
+# Runtime / secrets / bulk organism state (never publish)
+.env
+.env.*
+*.pem
+*.key
+secrets/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Living organism dumps & registries
+**/personal_living.jsonl
+**/sovereign_asset_registry.json
+**/*.autobak_*
+backups/
+logs/
+*.log
+
+# Local plant PIDs / stop files / live co-pilot
+measurements/long_horizon.pid
+measurements/watchdog.pid
+measurements/*_STOP
+measurements/hope_status.json
+measurements/long_horizon_state.json
+measurements/watchdog_status.json
+measurements/NOTIFY_USER.md
+measurements/guidance_momentum.json
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local full bin checkout noise
+_gh_export_aetheria/

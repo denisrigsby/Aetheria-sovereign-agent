@@ -1,0 +1,15 @@
+{
+  "schema": "status_snapshot_v1",
+  "note": "Example only; not live host state.",
+  "schedule": {
+    "cycles_per_tick": 2,
+    "interval_min": 15
+  },
+  "components": {
+    "light_multicycle": "active",
+    "watchdog": "active",
+    "status_files": "active",
+    "sandbox_guarded_edit": "demonstrated",
+    "broad_auto_edit": "incomplete"
+  }
+}

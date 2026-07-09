@@ -1,0 +1,490 @@
+#!/usr/bin/env python3
+"""
+Detached long-horizon supervisor for Aetheria.
+
+Runs light multi-cycle jobs on an interval, persists status, and does not
+require an interactive chat session as the parent process.
+
+Stop:  echo stop > measurements/long_horizon_STOP
+Usage: python -u scripts/long_horizon_supervisor.py --cycles 2 --interval-min 15 --max-ticks 96
+
+Env (conservation defaults):
+  AETHERIA_LIGHT_MANAGE=1
+  AETHERIA_SKIP_FINAL_RECON=1
+  AETHERIA_HEAVY_HEALTH_CYCLES=6,12
+  AETHERIA_META_RECON=0
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import traceback
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+os.chdir(ROOT)
+sys.path.insert(0, str(ROOT))
+
+STATE_PATH = ROOT / "measurements" / "long_horizon_state.json"
+STOP_PATH = ROOT / "measurements" / "long_horizon_STOP"
+PID_PATH = ROOT / "measurements" / "long_horizon.pid"
+LOG_JSONL = ROOT / "logs" / "long_horizon.jsonl"
+LOG_TXT = ROOT / "logs" / f"long_horizon_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def log(msg: str) -> None:
+    line = f"[{utc_now()}] {msg}"
+    print(line, flush=True)
+    try:
+        LOG_TXT.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_TXT.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def append_jsonl(obj: dict) -> None:
+    try:
+        LOG_JSONL.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_JSONL.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def write_state(state: dict) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    state = dict(state)
+    state["updated_at"] = utc_now()
+    tmp = STATE_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+    tmp.replace(STATE_PATH)
+    try:
+        from living.aetheria_canon import write_hope_status
+
+        write_hope_status(
+            {
+                "phase": "long_horizon",
+                "status": state.get("status", "running"),
+                "long_horizon": {
+                    "tick": state.get("tick"),
+                    "last_ok": state.get("last_ok"),
+                    "last_mom_series": state.get("last_mom_series"),
+                    "last_error": state.get("last_error"),
+                    "pid": state.get("pid"),
+                    "stop_file": str(STOP_PATH),
+                    "log": str(LOG_TXT),
+                },
+            }
+        )
+    except Exception as e:
+        log(f"hope_status note: {e}")
+
+
+def write_resume(state: dict) -> None:
+    resume = {
+        "schema": "aetheria_resume_v1",
+        "updated_at": utc_now(),
+        "workspace": str(ROOT),
+        "phase": "long_horizon_autonomous",
+        "mode": "long_horizon_supervisor",
+        "north_star": "Persistent sovereign Aetheria; multi-cycle; co-pilot; careful self-evo; no multi-hour hangs. Outages expected.",
+        "long_horizon": state,
+        "files": {
+            "handoff": "HANDOFF_NEXT_SESSION.md",
+            "resume": "RESUME_STATE.json",
+            "lh_state": str(STATE_PATH.relative_to(ROOT)),
+            "hope_status": "measurements/hope_status.json",
+            "lh_log": str(LOG_TXT),
+            "stop": str(STOP_PATH.relative_to(ROOT)),
+        },
+        "env_defaults": {
+            "AETHERIA_LIGHT_MANAGE": "1",
+            "AETHERIA_SKIP_FINAL_RECON": "1",
+            "AETHERIA_HEAVY_HEALTH_CYCLES": "6,12",
+            "AETHERIA_META_RECON": "0",
+        },
+        "next_actions": [
+            "Read HANDOFF_NEXT_SESSION.md + RESUME_STATE.json + measurements/long_horizon_state.json",
+            "If supervisor dead but wanted: python -u scripts/long_horizon_supervisor.py (or launch_long_horizon.ps1)",
+            "If registry missing: restore from backups/**/sovereign_asset_registry.json",
+            "Operator: read hope_status; only intervene on last_ok=false or stalled ticks",
+        ],
+        "do_not": [
+            "kill supervisor without writing stop file unless emergency",
+            "wipe registry",
+            "heavy manage every cycle",
+            "attach long runs to chat session",
+        ],
+        "user_constraints": "Power/Windows/internet outages expected; supervisor is process-local durable; interactive session is optional",
+        "prompt_seed_for_next_session": (
+            "Read <AETHERIA_BIN>\\HANDOFF_NEXT_SESSION.md, RESUME_STATE.json, "
+            "measurements/long_horizon_state.json, measurements/hope_status.json. "
+            "Long-horizon mode may be running detached. Check PID alive; if dead and user wants continuity, relaunch launch_long_horizon.ps1. "
+            "Do not redesign; maintain conservation; intervene only on failures."
+        ),
+    }
+    (ROOT / "RESUME_STATE.json").write_text(json.dumps(resume, indent=2), encoding="utf-8")
+
+
+def ensure_env() -> None:
+    os.environ.setdefault("AETHERIA_LIGHT_MANAGE", "1")
+    os.environ.setdefault("AETHERIA_SKIP_FINAL_RECON", "1")
+    os.environ.setdefault("AETHERIA_HEAVY_HEALTH_CYCLES", "6,12")
+    os.environ.setdefault("AETHERIA_META_RECON", "0")
+
+
+def restore_registry_if_missing() -> bool:
+    reg = ROOT / "sovereign_asset_registry.json"
+    if reg.exists() and reg.stat().st_size > 100:
+        return True
+    backups = sorted(
+        (ROOT / "backups").rglob("sovereign_asset_registry.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not backups:
+        log("CRITICAL: no registry and no backup")
+        return False
+    import shutil
+
+    shutil.copy2(backups[0], reg)
+    log(f"Restored registry from {backups[0]}")
+    return True
+
+
+def run_health() -> dict:
+    try:
+        from scripts.aetheria_hope_path import health  # type: ignore
+
+        return health()
+    except Exception:
+        # direct
+        sys.path.insert(0, str(ROOT))
+        try:
+            # import by path
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "aetheria_hope_path", ROOT / "scripts" / "aetheria_hope_path.py"
+            )
+            mod = importlib.util.module_from_spec(spec)
+            assert spec.loader
+            spec.loader.exec_module(mod)
+            return mod.health()
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+
+
+def run_probe_cycles(cycles: int, tick: int) -> dict:
+    """Inline light probe with NUM_CYCLES patched; returns summary dict."""
+    ensure_env()
+    src = (ROOT / "grok_supervised_12_probe.py").read_text(encoding="utf-8")
+    src = re.sub(r"NUM_CYCLES\s*=\s*\d+", f"NUM_CYCLES = {cycles}", src)
+    wrap = ROOT / "scripts" / f"_lh_probe_{tick}_{int(time.time())}.py"
+    wrap.write_text(src, encoding="utf-8")
+    log_path = ROOT / "logs" / f"lh_probe_tick{tick}_{int(time.time())}.log"
+    summary = {
+        "tick": tick,
+        "cycles": cycles,
+        "log": str(log_path),
+        "ok": False,
+        "started": utc_now(),
+    }
+    try:
+        with log_path.open("w", encoding="utf-8") as lf:
+            p = subprocess.Popen(
+                [sys.executable, "-u", str(wrap)],
+                cwd=str(ROOT),
+                stdout=lf,
+                stderr=subprocess.STDOUT,
+                env=os.environ.copy(),
+            )
+            # Soft wall + early success: once all cycles COMPLETE in log, allow brief finalize then kill
+            timeout = max(600, cycles * 180 + 300)
+            deadline = time.time() + timeout
+            rc = None
+            while time.time() < deadline:
+                if p.poll() is not None:
+                    rc = p.returncode
+                    break
+                try:
+                    text_so_far = log_path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    text_so_far = ""
+                completes_so_far = set(re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text_so_far))
+                if len(completes_so_far) >= cycles:
+                    # Give finalize 45s then terminate (channel/scribe can hang)
+                    fin_deadline = time.time() + 45
+                    while time.time() < fin_deadline and p.poll() is None:
+                        time.sleep(2)
+                    if p.poll() is None:
+                        log(f"probe cycles complete — terminating slow finalize pid={p.pid}")
+                        p.terminate()
+                        try:
+                            p.wait(timeout=15)
+                        except Exception:
+                            p.kill()
+                        rc = 0
+                        summary["note"] = "cycles_ok_finalize_truncated"
+                    else:
+                        rc = p.returncode
+                    break
+                time.sleep(3)
+            else:
+                if p.poll() is None:
+                    p.kill()
+                    summary["error"] = f"probe_timeout_{timeout}s"
+                    rc = -9
+                else:
+                    rc = p.returncode
+        summary["exit_code"] = rc
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        moms = [float(m) for m in re.findall(r"\[Post\] mom=([\d.]+)", text)]
+        completes = re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text)
+        summary["mom_series"] = moms
+        summary["final_mom"] = moms[-1] if moms else None
+        summary["cycles_complete"] = len(set(completes))
+        summary["ok"] = summary["cycles_complete"] >= cycles
+        if summary["ok"] and rc not in (0, None) and not summary.get("error"):
+            summary["note"] = (summary.get("note") or "") + "|nonzero_exit_but_cycles_ok"
+        summary["finished"] = utc_now()
+    except Exception as e:
+        summary["error"] = str(e)[:400]
+        summary["traceback"] = traceback.format_exc()[-500:]
+    finally:
+        try:
+            wrap.unlink()
+        except Exception:
+            pass
+        # restore interventions template
+        defaults = ROOT / "next_interventions.defaults.json"
+        if defaults.exists():
+            (ROOT / "next_interventions.json").write_text(
+                defaults.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+    return summary
+
+
+def maybe_backup(tick: int, every: int) -> None:
+    if every <= 0 or tick % every != 0:
+        return
+    ps1 = ROOT / "scripts" / "backup_sovereign_core.ps1"
+    if not ps1.exists():
+        return
+    log(f"Periodic backup tick={tick}")
+    try:
+        subprocess.call(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(ps1),
+                "-Label",
+                f"lh_tick{tick}",
+            ],
+            cwd=str(ROOT),
+            timeout=300,
+        )
+    except Exception as e:
+        log(f"backup note: {e}")
+
+
+def should_stop() -> bool:
+    return STOP_PATH.exists()
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Long-horizon detached Aetheria supervisor")
+    ap.add_argument("--cycles", type=int, default=2, help="Cycles per tick (default 2; use 6 for deeper)")
+    ap.add_argument("--interval-min", type=float, default=30.0, help="Minutes between ticks after a run")
+    ap.add_argument("--max-ticks", type=int, default=48, help="Stop after N ticks (0=unlimited)")
+    ap.add_argument("--backup-every", type=int, default=4, help="Backup every N ticks (0=never)")
+    ap.add_argument("--hygiene-every", type=int, default=8, help="Registry hygiene every N ticks (0=never)")
+    ap.add_argument("--once", action="store_true", help="Single tick then exit (test)")
+    args = ap.parse_args()
+
+    ensure_env()
+    (ROOT / "logs").mkdir(exist_ok=True)
+    (ROOT / "measurements").mkdir(exist_ok=True)
+    if STOP_PATH.exists():
+        STOP_PATH.unlink()
+
+    pid = os.getpid()
+    PID_PATH.write_text(str(pid), encoding="utf-8")
+    state = {
+        "pid": pid,
+        "status": "starting",
+        "tick": 0,
+        "cycles_per_tick": args.cycles,
+        "interval_min": args.interval_min,
+        "max_ticks": args.max_ticks,
+        "log_txt": str(LOG_TXT),
+        "started_at": utc_now(),
+        "history": [],
+    }
+    write_state(state)
+    write_resume(state)
+    log(f"LONG HORIZON SUPERVISOR START pid={pid} cycles={args.cycles} interval={args.interval_min}m")
+
+    try:
+        from living.aetheria_canon import append_session_living
+
+        append_session_living(
+            {
+                "tag": "ops_note",
+                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached supervisor start; status via hope_status.",
+                "score": 9.8,
+                "phase": "long_horizon_start",
+                "ops_note": True,
+            }
+        )
+    except Exception:
+        pass
+
+    tick = 0
+    while True:
+        if should_stop():
+            log("STOP file detected — graceful exit")
+            state["status"] = "stopped_by_file"
+            break
+        tick += 1
+        state["tick"] = tick
+        state["status"] = "running_tick"
+        write_state(state)
+        write_resume(state)
+        log(f"=== TICK {tick} BEGIN ===")
+
+        if not restore_registry_if_missing():
+            state["last_ok"] = False
+            state["last_error"] = "registry_missing_no_backup"
+            write_state(state)
+            time.sleep(60)
+            if args.once:
+                break
+            continue
+
+        # Health
+        h = run_health()
+        orch_ok = bool((h.get("smoke") or {}).get("orch_ok") if isinstance(h, dict) else False)
+        log(f"health orch_ok={orch_ok}")
+
+        if args.hygiene_every and tick % args.hygiene_every == 0:
+            try:
+                subprocess.call(
+                    [sys.executable, "-u", str(ROOT / "scripts" / "registry_hygiene.py"), "--max-assets", "500"],
+                    cwd=str(ROOT),
+                    timeout=120,
+                )
+            except Exception as e:
+                log(f"hygiene note: {e}")
+
+        # Probe
+        summary = run_probe_cycles(args.cycles, tick)
+        log(
+            f"tick={tick} probe ok={summary.get('ok')} moms={summary.get('mom_series')} "
+            f"complete={summary.get('cycles_complete')}/{args.cycles}"
+        )
+        append_jsonl({"ts": utc_now(), "tick": tick, "summary": summary, "health_orch_ok": orch_ok})
+
+        state["last_ok"] = bool(summary.get("ok"))
+        state["last_mom_series"] = summary.get("mom_series")
+        state["last_final_mom"] = summary.get("final_mom")
+        state["last_error"] = summary.get("error")
+        state["last_probe_log"] = summary.get("log")
+        state["last_tick_finished"] = utc_now()
+        hist = list(state.get("history") or [])
+        hist.append(
+            {
+                "tick": tick,
+                "ok": summary.get("ok"),
+                "final_mom": summary.get("final_mom"),
+                "ts": utc_now(),
+            }
+        )
+        state["history"] = hist[-50:]
+        state["status"] = "idle_between_ticks" if summary.get("ok") else "degraded"
+        # Persist mom so next tick subprocess continues ladder (not reset to 0)
+        try:
+            mom = summary.get("final_mom")
+            if mom is not None:
+                mp = ROOT / "measurements" / "guidance_momentum.json"
+                mp.write_text(
+                    json.dumps(
+                        {"guidance_momentum": float(mom), "updated_at": utc_now(), "from_tick": tick},
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+                state["persisted_mom"] = float(mom)
+        except Exception as e:
+            log(f"mom persist note: {e}")
+        write_state(state)
+        write_resume(state)
+
+        maybe_backup(tick, args.backup_every)
+
+        # Steering zoom (user weakness/opportunity hygiene) — non-fatal
+        try:
+            subprocess.call(
+                [sys.executable, "-u", str(ROOT / "scripts" / "zoom_lens.py"), "--quiet"],
+                cwd=str(ROOT),
+                timeout=60,
+            )
+        except Exception as e:
+            log(f"zoom_lens note: {e}")
+
+        if args.once:
+            log(" --once set; exiting after one tick")
+            state["status"] = "completed_once"
+            break
+        if args.max_ticks and tick >= args.max_ticks:
+            log(f"max_ticks={args.max_ticks} reached")
+            state["status"] = "completed_max_ticks"
+            break
+
+        # Sleep in small slices so STOP file is responsive
+        sleep_s = max(30.0, float(args.interval_min) * 60.0)
+        log(f"sleeping {sleep_s/60:.1f} min until next tick")
+        end = time.time() + sleep_s
+        while time.time() < end:
+            if should_stop():
+                log("STOP during sleep")
+                state["status"] = "stopped_by_file"
+                write_state(state)
+                write_resume(state)
+                return 0
+            # heartbeat
+            state["heartbeat_at"] = utc_now()
+            write_state(state)
+            time.sleep(min(30.0, end - time.time()))
+
+    write_state(state)
+    write_resume(state)
+    try:
+        PID_PATH.unlink()
+    except Exception:
+        pass
+    if STOP_PATH.exists():
+        try:
+            STOP_PATH.unlink()
+        except Exception:
+            pass
+    log(f"LONG HORIZON SUPERVISOR EXIT status={state.get('status')}")
+    return 0 if state.get("last_ok", True) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
