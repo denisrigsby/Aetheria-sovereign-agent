@@ -1,11 +1,19 @@
 # Memory and state
 
-## Paths (full install)
+## Public vs private
+
+| Published in this repo | Private (local only) |
+|------------------------|----------------------|
+| Control-plane scripts | Living memory streams (`personal_living.jsonl`, etc.) |
+| Path helpers + sandbox target | Live asset registry |
+| Example / sanitized measurements | Host PID files, stop files, live hope/LH state |
+| Docs and templates | Logs, backups, credentials |
+
+## Typical paths (full install)
 
 | Path | Role |
-|---|---|
-| `living/personal_living.jsonl` | Long-term living stream |
-| `personal_living.jsonl` | Session / operations overlay |
+|------|------|
+| `living/` stream files | Long-term living content |
 | `measurements/hope_status.json` | Runtime status window |
 | `sovereign_asset_registry.json` | Assets and event log |
 
@@ -14,10 +22,10 @@ Overrides: `AETHERIA_LIVING_PATH`, `AETHERIA_BIN_ROOT`.
 
 ## Practice
 
-- Do not merge living streams as a cleanup step.  
-- Do not delete the registry without a backup on disk.  
-- Auxiliary pause flags are secondary; the measured run path does not depend on them.
+- Do **not** merge living streams as a casual cleanup step  
+- Do **not** delete the registry without a backup on disk  
+- Do **not** commit live `measurements/*` status, PID, or notify files  
 
 ## This repository
 
-Live living files and registries are not included. Examples under `measurements/` are sanitized.
+Live living files and registries are **not** included. Anything under `measurements/` here is example or sanitized only.

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  control-plane:
+    name: Control plane checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Byte-compile published modules
+        run: python -m compileall -q scripts living
+
+      - name: Required surface present
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = [
+              "README.md",
+              "LICENSE",
+              "SETUP.md",
+              "CONTRIBUTING.md",
+              "docs/ARCHITECTURE.md",
+              "docs/OPERATIONS.md",
+              "scripts/long_horizon_supervisor.py",
+              "scripts/lh_watchdog.py",
+              "scripts/aetheria_hope_path.py",
+              "scripts/launch_long_horizon.ps1",
+              "scripts/launch_lh_watchdog.ps1",
+              "living/aetheria_canon.py",
+              "living/m6_sandbox_target.py",
+          ]
+          missing = [p for p in required if not Path(p).is_file()]
+          if missing:
+              raise SystemExit(f"missing required files: {missing}")
+          print("ok", len(required), "paths")
+          PY
+
+      - name: No absolute Windows operator paths in public docs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          bad = []
+          for p in list(Path(".").rglob("*.md")) + list(Path(".").rglob("*.example.*")):
+              if ".git" in p.parts:
+                  continue
+              text = p.read_text(encoding="utf-8", errors="replace")
+              for needle in (r"C:\\Users\\", "C:/Users/", r"C:\\Users"):
+                  if needle in text or "C:\\Users" in text:
+                      bad.append(str(p))
+                      break
+          if bad:
+              raise SystemExit(f"operator absolute paths found in: {bad}")
+          print("path sanitize ok")
+          PY
