@@ -1,0 +1,16 @@
+{
+  "schema": "lh_probe_summary_v1",
+  "ok": true,
+  "cycles_requested": 2,
+  "cycles_complete": 2,
+  "final_mom": 1860.0,
+  "mom_series": [1848.0, 1860.0],
+  "exit_code": 0,
+  "started_at": "2026-07-11T00:00:00+00:00",
+  "finished_at": "2026-07-11T00:03:00+00:00",
+  "error": null,
+  "error_class": null,
+  "log_path": "logs/lh_probe_tick1_example.log",
+  "runner": "grok_supervised_12_probe",
+  "notes": ["example_only_not_live"]
+}

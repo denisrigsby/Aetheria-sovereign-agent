@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-long_horizon_supervisor.py — Detached long-horizon Aetheria loop (survives Grok chat death).
+long_horizon_supervisor.py — Detached long-horizon loop (survives interactive session exit).
 
 Architecture:
-  [This process, detached]  runs forever (or until stop file / max ticks)
+  [This process, detached]  runs until stop file / max ticks (rolling segment)
        |
        +-- health check
-       +-- light N-cycle probe (hope_path / supervised probe)
+       +-- light N-cycle runner (contract summary primary; log dual-read fallback)
        +-- update hope_status + RESUME_STATE + long_horizon_state.json
+       +-- durable green-tick log for change gates
        +-- optional periodic core backup
        +-- sleep interval
-  [Grok] supervises by reading status files when a session is alive;
-         does NOT need to be parent of this process.
+  Operators inspect status files; they are not the process parent.
 
 Stop gracefully:
   echo stop > measurements/long_horizon_STOP
@@ -110,7 +110,7 @@ def write_resume(state: dict) -> None:
         "workspace": str(ROOT),
         "phase": "long_horizon_autonomous",
         "mode": "long_horizon_supervisor",
-        "north_star": "Persistent sovereign Aetheria; multi-cycle; co-pilot; careful self-evo; no multi-hour hangs. Outages expected.",
+        "north_star": "Durable multi-cycle local agent runtime; conservation defaults; no multi-hour hangs. Outages expected.",
         "long_horizon": state,
         "files": {
             "handoff": "HANDOFF_NEXT_SESSION.md",
@@ -131,6 +131,7 @@ def write_resume(state: dict) -> None:
             "If the supervisor is dead and continuity is desired: relaunch scripts/launch_long_horizon.ps1",
             "If the asset registry is missing: restore from backups/**/sovereign_asset_registry.json",
             "Inspect hope_status / long_horizon_state; intervene only when last_ok is false or the process is stalled",
+            "For lag: python -u scripts/status_report.py (orphans + resources); --reap-orphans if idle",
         ],
         "constraints": [
             "Do not kill the supervisor without a stop file unless emergency",
@@ -192,45 +193,109 @@ def run_health() -> dict:
             return {"ok": False, "error": str(e)[:300]}
 
 
+def _probe_timeout_s(cycles: int) -> int:
+    """Bounded wall time for cycle runner (loud fail; no multi-hour mystery hang)."""
+    env_abs = os.environ.get("AETHERIA_PROBE_TIMEOUT_S", "").strip()
+    if env_abs.isdigit() and int(env_abs) > 0:
+        return int(env_abs)
+    # base 300 + 180/cycle, floor 600, cap 2400
+    return int(min(2400, max(600, 300 + 180 * int(cycles))))
+
+
+def _load_probe_contract_summary() -> dict | None:
+    p = ROOT / "measurements" / "lh_probe_summary_latest.json"
+    if not p.exists():
+        return None
+    try:
+        o = json.loads(p.read_text(encoding="utf-8"))
+        if o.get("schema") != "lh_probe_summary_v1":
+            return None
+        return o
+    except Exception:
+        return None
+
+
 def run_probe_cycles(cycles: int, tick: int) -> dict:
-    """Inline light probe with NUM_CYCLES patched; returns summary dict."""
+    """Run cycle worker: env cycle count + contract summary; regex dual-read fallback.
+
+    Primary: AETHERIA_NUM_CYCLES + local cycle probe script (no source rewrite).
+    Parent trusts measurements/lh_probe_summary_latest.json when present.
+    """
     ensure_env()
-    src = (ROOT / "grok_supervised_12_probe.py").read_text(encoding="utf-8")
-    src = re.sub(r"NUM_CYCLES\s*=\s*\d+", f"NUM_CYCLES = {cycles}", src)
-    wrap = ROOT / "scripts" / f"_lh_probe_{tick}_{int(time.time())}.py"
-    wrap.write_text(src, encoding="utf-8")
+    probe_script = ROOT / "grok_supervised_12_probe.py"
+    if not probe_script.exists():
+        return {"ok": False, "error": "probe_script_missing", "error_class": "import_error", "tick": tick}
+
     log_path = ROOT / "logs" / f"lh_probe_tick{tick}_{int(time.time())}.log"
-    summary = {
+    summary: dict = {
         "tick": tick,
         "cycles": cycles,
         "log": str(log_path),
         "ok": False,
         "started": utc_now(),
+        "runner": "cycle_runner_v1",
     }
+    # Clear stale contract so we do not read a previous tick's ok
+    contract_path = ROOT / "measurements" / "lh_probe_summary_latest.json"
+    try:
+        if contract_path.exists():
+            contract_path.unlink()
+    except Exception:
+        pass
+
+    env = os.environ.copy()
+    env["AETHERIA_NUM_CYCLES"] = str(cycles)
+    env["NUM_CYCLES"] = str(cycles)
+    env.setdefault("AETHERIA_LIGHT_MANAGE", "1")
+    env.setdefault("AETHERIA_SKIP_FINAL_RECON", "1")
+    env.setdefault("AETHERIA_META_RECON", "0")
+
+    legacy = env.get("AETHERIA_PROBE_LEGACY", "").strip() in ("1", "true", "True")
+    wrap = None
+    run_target = probe_script
+    if legacy:
+        # Escape hatch: old temp-file NUM_CYCLES rewrite
+        src = probe_script.read_text(encoding="utf-8")
+        src = re.sub(r"NUM_CYCLES\s*=\s*\d+", f"NUM_CYCLES = {cycles}", src)
+        wrap = ROOT / "scripts" / f"_lh_probe_{tick}_{int(time.time())}.py"
+        wrap.write_text(src, encoding="utf-8")
+        run_target = wrap
+        summary["note"] = "legacy_source_rewrite"
+
+    timeout = _probe_timeout_s(cycles)
+    summary["timeout_s"] = timeout
     try:
         with log_path.open("w", encoding="utf-8") as lf:
             p = subprocess.Popen(
-                [sys.executable, "-u", str(wrap)],
+                [sys.executable, "-u", str(run_target)],
                 cwd=str(ROOT),
                 stdout=lf,
                 stderr=subprocess.STDOUT,
-                env=os.environ.copy(),
+                env=env,
             )
-            # Soft wall + early success: once all cycles COMPLETE in log, allow brief finalize then kill
-            timeout = max(600, cycles * 180 + 300)
             deadline = time.time() + timeout
             rc = None
             while time.time() < deadline:
                 if p.poll() is not None:
                     rc = p.returncode
                     break
-                try:
-                    text_so_far = log_path.read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    text_so_far = ""
-                completes_so_far = set(re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text_so_far))
-                if len(completes_so_far) >= cycles:
-                    # Give finalize 45s then terminate (channel/scribe can hang)
+                # Early complete: contract summary OR log markers
+                contract = _load_probe_contract_summary()
+                cycles_done = False
+                if contract and int(contract.get("cycles_complete") or 0) >= cycles:
+                    cycles_done = True
+                    summary["completion_path"] = "contract_summary"
+                else:
+                    try:
+                        text_so_far = log_path.read_text(encoding="utf-8", errors="replace")
+                    except Exception:
+                        text_so_far = ""
+                    completes_so_far = set(re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text_so_far))
+                    if len(completes_so_far) >= cycles:
+                        cycles_done = True
+                        summary["completion_path"] = "log_regex_early"
+                if cycles_done:
+                    # Finalize grace — scribe/channel can hang after contract is already ok
                     fin_deadline = time.time() + 45
                     while time.time() < fin_deadline and p.poll() is None:
                         time.sleep(2)
@@ -242,7 +307,8 @@ def run_probe_cycles(cycles: int, tick: int) -> dict:
                         except Exception:
                             p.kill()
                         rc = 0
-                        summary["note"] = "cycles_ok_finalize_truncated"
+                        summary["note"] = (summary.get("note") or "") + "|finalize_truncated"
+                        summary["error_class"] = summary.get("error_class") or "parent_finalize_truncate"
                     else:
                         rc = p.returncode
                     break
@@ -250,30 +316,85 @@ def run_probe_cycles(cycles: int, tick: int) -> dict:
             else:
                 if p.poll() is None:
                     p.kill()
+                    try:
+                        p.wait(timeout=10)
+                    except Exception:
+                        pass
                     summary["error"] = f"probe_timeout_{timeout}s"
+                    summary["error_class"] = "probe_timeout"
                     rc = -9
                 else:
                     rc = p.returncode
+
         summary["exit_code"] = rc
-        text = log_path.read_text(encoding="utf-8", errors="replace")
-        moms = [float(m) for m in re.findall(r"\[Post\] mom=([\d.]+)", text)]
-        completes = re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text)
-        summary["mom_series"] = moms
-        summary["final_mom"] = moms[-1] if moms else None
-        summary["cycles_complete"] = len(set(completes))
-        summary["ok"] = summary["cycles_complete"] >= cycles
+        text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
+
+        # Dual-read: contract primary, regex fallback
+        contract = _load_probe_contract_summary()
+        if contract and contract.get("ok") is True and int(contract.get("cycles_complete") or 0) >= cycles:
+            summary["ok"] = True
+            summary["cycles_complete"] = int(contract.get("cycles_complete") or 0)
+            summary["mom_series"] = contract.get("mom_series") or []
+            summary["final_mom"] = contract.get("final_mom")
+            summary["completion_path"] = summary.get("completion_path") or "contract_summary"
+            summary["contract"] = {k: contract.get(k) for k in ("schema", "runner", "finished_at", "ok")}
+        else:
+            moms = [float(m) for m in re.findall(r"\[Post\] mom=([\d.]+)", text)]
+            completes = re.findall(r"CYCLE (\d+)/\d+ COMPLETE", text)
+            summary["mom_series"] = moms
+            summary["final_mom"] = moms[-1] if moms else None
+            summary["cycles_complete"] = len(set(completes))
+            summary["ok"] = summary["cycles_complete"] >= cycles
+            summary["completion_path"] = "log_regex_fallback"
+            if contract:
+                summary["contract_partial"] = {
+                    "ok": contract.get("ok"),
+                    "cycles_complete": contract.get("cycles_complete"),
+                }
+            if not summary["ok"] and summary.get("error_class") is None:
+                summary["error_class"] = "cycles_incomplete"
+            if summary["ok"]:
+                summary["note"] = (summary.get("note") or "") + "|completion_via_fallback"
+
         if summary["ok"] and rc not in (0, None) and not summary.get("error"):
             summary["note"] = (summary.get("note") or "") + "|nonzero_exit_but_cycles_ok"
+        if summary.get("error_class") == "probe_timeout":
+            summary["ok"] = False
         summary["finished"] = utc_now()
-    except Exception as e:
-        summary["error"] = str(e)[:400]
-        summary["traceback"] = traceback.format_exc()[-500:]
-    finally:
+
+        # Refresh contract file with parent view (optional audit)
         try:
-            wrap.unlink()
+            parent_view = {
+                "schema": "lh_probe_summary_v1",
+                "ok": summary.get("ok"),
+                "cycles_requested": cycles,
+                "cycles_complete": summary.get("cycles_complete"),
+                "final_mom": summary.get("final_mom"),
+                "mom_series": summary.get("mom_series"),
+                "exit_code": rc,
+                "started_at": summary.get("started"),
+                "finished_at": summary.get("finished"),
+                "error": summary.get("error"),
+                "error_class": summary.get("error_class"),
+                "log_path": str(log_path),
+                "runner": "cycle_runner_v1_parent",
+                "completion_path": summary.get("completion_path"),
+                "notes": [summary.get("note")] if summary.get("note") else [],
+                "tick": tick,
+            }
+            contract_path.write_text(json.dumps(parent_view, indent=2), encoding="utf-8")
         except Exception:
             pass
-        # restore interventions template
+    except Exception as e:
+        summary["error"] = str(e)[:400]
+        summary["error_class"] = "unknown"
+        summary["traceback"] = traceback.format_exc()[-500:]
+    finally:
+        if wrap is not None:
+            try:
+                wrap.unlink()
+            except Exception:
+                pass
         defaults = ROOT / "next_interventions.defaults.json"
         if defaults.exists():
             (ROOT / "next_interventions.json").write_text(
@@ -351,7 +472,7 @@ def main() -> int:
         append_session_living(
             {
                 "tag": "RIGOR_ENFORCED",
-                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached; Grok supervises via hope_status. RIGOR_ENFORCED.",
+                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached; operators monitor via hope_status / status_report.",
                 "score": 9.8,
                 "phase": "long_horizon_start",
                 "RIGOR_ENFORCED": True,

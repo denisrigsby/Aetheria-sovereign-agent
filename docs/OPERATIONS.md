@@ -51,13 +51,36 @@ The supervisor honors the stop file between ticks; the watchdog honors its stop 
 4. Prefer **restore-and-continue** over configuration experiments while recovering.  
 5. Expect the **tick counter** to restart on a new process; momentum and durable green-tick logs can continue.
 
+## Status, lag, and orphans
+
+```powershell
+python -u scripts/status_report.py
+# alias:
+python -u scripts/resource_check.py
+```
+
+Shows plant health, last cycle-runner contract fields, related processes, memory/CPU, and **orphan** cycle workers (children still running while the plant is idle — a common host-lag cause after finalize hangs).
+
+```powershell
+# Only when long-horizon is NOT mid-tick:
+python -u scripts/status_report.py --reap-orphans
+```
+
 ## Continuity audit (read-only)
 
 ```powershell
 python -u scripts/verify_continuity_readonly.py
 ```
 
-Writes `measurements/CONTINUITY_VERIFY_latest.json` (and a short markdown twin). Does not start probes or kill processes.
+Writes `measurements/CONTINUITY_VERIFY_latest.json` (and a short markdown twin). Does not start cycle workers or kill processes.
+
+## Cycle runner (contract)
+
+See [CYCLE_RUNNER.md](CYCLE_RUNNER.md). Short form:
+
+- Env: `AETHERIA_NUM_CYCLES` (and conservation vars)
+- Summary: `measurements/lh_probe_summary_latest.json` (`lh_probe_summary_v1`)
+- Manual smoke: `python -u scripts/run_probe_bounded.py --cycles 2`
 
 ## Change-control gate (optional)
 

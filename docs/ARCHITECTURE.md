@@ -86,7 +86,19 @@ Relaunches through the launch script. **Relaunch success** is defined by a live 
 
 ### `aetheria_hope_path`
 
-Measured entry path: health reporting, optional hygiene/backup, short N-cycle run, updates `measurements/hope_status.json`.
+Measured entry path: health reporting, optional hygiene/backup, short N-cycle run via the **same cycle-runner contract** as the supervisor, updates `measurements/hope_status.json`.
+
+### Cycle runner contract
+
+Each tick (and hope-path measured run) launches a local cycle body with:
+
+- `AETHERIA_NUM_CYCLES` for cycle count (no source rewrite in the primary path)
+- Hard wall-clock timeout
+- Primary completion via `measurements/lh_probe_summary_latest.json` (`lh_probe_summary_v1`)
+- Dual-read fallback to log markers if the summary is missing
+- Finalize grace then terminate if the child hangs after a successful contract
+
+Details: [CYCLE_RUNNER.md](CYCLE_RUNNER.md).
 
 ### Change-control gate (`eval_residual_gate_v2`)
 

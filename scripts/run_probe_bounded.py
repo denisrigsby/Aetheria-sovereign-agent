@@ -28,7 +28,7 @@ def utc() -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Bounded paradigm probe (reaps process)")
+    ap = argparse.ArgumentParser(description="Bounded cycle-runner smoke test (reaps process)")
     ap.add_argument("--cycles", type=int, default=2)
     ap.add_argument("--timeout-s", type=int, default=0, help="0 = formula 300+180*cycles capped")
     args = ap.parse_args()

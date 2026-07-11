@@ -130,10 +130,10 @@ def collect_related_and_orphans(
         "long_horizon_supervisor",
         "lh_watchdog",
         "grok_supervised_12_probe",
-        "residual_autopilot",
         "aetheria_hope_path",
         "hope_path",
         "status_report",
+        "run_probe_bounded",
     )
     for row in _cim_processes():
         cmd = row.get("CommandLine") or ""

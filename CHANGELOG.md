@@ -2,6 +2,29 @@
 
 All notable changes to the **public control plane** are documented here.
 
+## [0.3.0] — 2026-07-11
+
+### Added
+
+- **Cycle runner contract** documentation ([docs/CYCLE_RUNNER.md](docs/CYCLE_RUNNER.md))
+- `measurements/lh_probe_summary.example.json` — structured completion schema
+- Supervisor + hope-path consumers: env cycle count, summary dual-read, bounded finalize
+- `status_report` / `resource_check`: related processes, orphan cycle workers, host RAM/CPU
+- `--reap-orphans` for safe cleanup when the plant is not mid-tick
+- `run_probe_bounded.py` — manual smokes with hard timeout (prevents host lag from orphans)
+
+### Changed
+
+- README rewritten for technical clarity and engagement (problem → architecture → features)
+- Public language prefers **cycle runner / contract** over informal codenames
+- Operator-facing strings scrubbed of host absolute paths and session-vendor specifics
+- OPERATIONS: lag/orphan playbook; ARCHITECTURE: cycle boundary diagram section
+
+### Fixed
+
+- Class of failures where cycle work finished but child finalize hung unbounded (parent path)
+- Class of host lag from orphan cycle processes while supervisor already idle
+
 ## [0.2.1] — 2026-07-11
 
 ### Added

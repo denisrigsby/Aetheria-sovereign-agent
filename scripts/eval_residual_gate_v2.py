@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Evaluate change-control gate v2. Exit 0 if OPEN, 1 if closed, 2 if error.
+"""Evaluate residual_gate_v2 strictly. Exit 0 if OPEN, 1 if closed, 2 if error.
 
-Gate A counts successful supervisor ticks after the last recorded change from:
-  - current long_horizon_state.history (this process segment)
-  - durable measurements/gate_a_green_ticks.jsonl (survives process restart)
-
-Optional: operators may record a last-change timestamp in RESUME_STATE or
-measurement result files listed below. Without those, A uses all green ticks.
+P0: Gate A counts green ticks after last residual from BOTH:
+  - current long_horizon_state.history (in-process segment)
+  - durable measurements/gate_a_green_ticks.jsonl (survives PID restart)
 """
 from __future__ import annotations
 
@@ -114,11 +111,11 @@ def resolve_last_residual_ts(resume: dict) -> str | None:
     if lr:
         candidates_ts.append(lr)
     for rel in (
-        "measurements/last_change_latest.json",
-        "measurements/m6_thin_safeedit_latest.json",
-        "measurements/m6_firmer_safeedit_latest.json",
-        "measurements/m6_autopilot_safeedit_latest.json",
         "measurements/green_gated_hold_residual_latest.json",
+        "measurements/m6_firmer_safeedit_latest.json",
+        "measurements/m6_thin_safeedit_latest.json",
+        "measurements/m6_autopilot_safeedit_latest.json",
+        "measurements/residual_autopilot_latest.json",
     ):
         p = ROOT / rel
         if p.exists():
@@ -126,10 +123,10 @@ def resolve_last_residual_ts(resume: dict) -> str | None:
                 o = json.loads(p.read_text(encoding="utf-8"))
                 if not o.get("ts"):
                     continue
-                # Prefer completed change records when present
-                if o.get("ran") is False:
-                    continue
-                if o.get("ok") is False:
+                if rel.endswith("residual_autopilot_latest.json"):
+                    if not (o.get("ran") and o.get("ok")):
+                        continue
+                if o.get("ok") is False and "residual" in o:
                     continue
                 candidates_ts.append(o["ts"])
             except Exception:

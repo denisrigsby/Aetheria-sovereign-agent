@@ -1,4 +1,4 @@
-# Detached LH watchdog — survives Grok chat death.
+# Detached LH watchdog — survives interactive session exit.
 # Monitors long_horizon_supervisor; relaunches on death/stall; notifies only as needed.
 param(
   [double]$IntervalSec = 60

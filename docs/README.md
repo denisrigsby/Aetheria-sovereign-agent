@@ -3,6 +3,7 @@
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [WHY.md](WHY.md) | New readers | Problem, non-goals, success criteria |
+| [CYCLE_RUNNER.md](CYCLE_RUNNER.md) | Contributors / operators | Cycle contract, timeouts, orphan hygiene |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Contributors / operators | Process model, layers, diagrams |
 | [OPERATIONS.md](OPERATIONS.md) | Operators | Start, stop, recover, maintenance |
 | [INTERNALS.md](INTERNALS.md) | Operators | Continuity files, health definition, change policy |
