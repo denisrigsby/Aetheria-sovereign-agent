@@ -1,15 +1,17 @@
 # Aetheria — high-level description
 
-**Local multi-cycle agent runtime.** Scheduled work runs as a supervised process with on-disk status, not as a long-lived chat session.
+**Local multi-cycle agent runtime** with process supervision and on-disk persistence.
 
-This repository publishes the **control plane**: supervisor, watchdog, measured entry path, maintenance helpers, and the documentation needed to operate them.
+Scheduled work runs as a detached supervisor with status files and a watchdog — not as a long-lived interactive chat session.
 
-Deployment-specific state — living memory, asset registry, host configuration — remains on the operator machine and is not distributed here.
+This repository publishes the **control plane**: supervisor, watchdog, measured entry path, continuity audit, optional change-control gate, and documentation.
+
+Private deployment state — living memory, asset registries, host configuration — remains on the operator machine.
 
 ## One sentence
 
-Aetheria is process supervision for long-horizon local AI work: start a loop, persist progress, recover from crashes, without parenting multi-hour jobs on an interactive session.
+Process supervision for long-horizon local AI work: start a loop, persist progress, recover from crashes, and treat process restarts as normal segments rather than campaign failure.
 
 ## Keywords
 
-local agent runtime · supervised LLM agent · persistent AI loop · watchdog process supervision · long-horizon agents
+local agent runtime · supervised LLM agent · persistent AI loop · watchdog process supervision · long-horizon agents · rolling process segments

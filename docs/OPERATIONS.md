@@ -1,6 +1,6 @@
 # Operations
 
-Day-2 runbook for the published control plane. Paths are relative to your Aetheria root (`<AETHERIA_ROOT>`).
+Runbook for the published control plane. Paths are relative to your Aetheria root (`<AETHERIA_ROOT>`).
 
 ## Environment
 
@@ -11,7 +11,7 @@ $env:AETHERIA_HEAVY_HEALTH_CYCLES = "6,12"
 $env:AETHERIA_META_RECON = "0"
 ```
 
-Optional overrides: `AETHERIA_BIN_ROOT`, `AETHERIA_LIVING_PATH`.
+Optional path overrides: `AETHERIA_BIN_ROOT`, `AETHERIA_LIVING_PATH`.
 
 ## Short measured run
 
@@ -19,18 +19,20 @@ Optional overrides: `AETHERIA_BIN_ROOT`, `AETHERIA_LIVING_PATH`.
 cd <AETHERIA_ROOT>
 python -u scripts/aetheria_hope_path.py --health-only
 python -u scripts/aetheria_hope_path.py --cycles 2
-# Inspect status when present:
-#   measurements/hope_status.json
 ```
 
-## Detached schedule
+When present, inspect `measurements/hope_status.json`.
 
-Example schedule (tune interval and max ticks to your load):
+## Detached schedule (rolling segment)
+
+Default recommendation: **2 cycles per tick**, **30 minutes** between ticks, **48 ticks per process segment**.
 
 ```powershell
-powershell -File scripts/launch_long_horizon.ps1 -Cycles 2 -IntervalMin 30 -MaxTicks 200
+powershell -File scripts/launch_long_horizon.ps1 -Cycles 2 -IntervalMin 30 -MaxTicks 48
 powershell -File scripts/launch_lh_watchdog.ps1
 ```
+
+A segment ending (`completed_max_ticks`) is normal. The watchdog can relaunch a new segment. Process identity is a **worker**, not the whole campaign.
 
 ### Stop
 
@@ -39,14 +41,31 @@ Set-Content measurements/long_horizon_STOP "stop"
 Set-Content measurements/watchdog_STOP "stop"
 ```
 
-Supervisor honors the stop file between ticks; watchdog honors its own stop file on the next poll.
+The supervisor honors the stop file between ticks; the watchdog honors its stop file on the next poll.
 
 ## After host restart
 
-1. Check whether supervisor and watchdog PIDs are still alive (`measurements/long_horizon.pid`, `measurements/watchdog.pid`).
-2. Relaunch only processes that are not running (same conservation env as above).
-3. If `sovereign_asset_registry.json` is missing, restore the newest copy under `backups/` before heavy work.
-4. Prefer **restore-and-continue** over configuration experiments while recovering.
+1. Check `measurements/long_horizon.pid` and `measurements/watchdog.pid` for live processes.  
+2. Relaunch only what is not running (same conservation environment).  
+3. If `sovereign_asset_registry.json` is missing, restore the newest copy under `backups/` before heavy work.  
+4. Prefer **restore-and-continue** over configuration experiments while recovering.  
+5. Expect the **tick counter** to restart on a new process; momentum and durable green-tick logs can continue.
+
+## Continuity audit (read-only)
+
+```powershell
+python -u scripts/verify_continuity_readonly.py
+```
+
+Writes `measurements/CONTINUITY_VERIFY_latest.json` (and a short markdown twin). Does not start probes or kill processes.
+
+## Change-control gate (optional)
+
+```powershell
+python -u scripts/eval_residual_gate_v2.py
+```
+
+Evaluates whether enough **green ticks after the last recorded change** have completed (Gate A), whether a candidate change is declared (Gate B, if used), and whether the budget is free (Gate C). Green ticks are counted from the current process history **and** `measurements/gate_a_green_ticks.jsonl` so restarts do not silently zero progress.
 
 ## Maintenance
 
@@ -67,19 +86,23 @@ Requires the orchestrator (full install). Prefer running while the long-horizon 
 
 ## Status files (runtime)
 
-| File | Role |
-|------|------|
+| File | Description |
+|------|-------------|
 | `measurements/hope_status.json` | Merged operational window |
 | `measurements/long_horizon_state.json` | Tick, last_ok, momentum, heartbeat |
 | `measurements/watchdog_status.json` | Last watchdog diagnosis |
+| `measurements/guidance_momentum.json` | Momentum across restarts (when used) |
+| `measurements/gate_a_green_ticks.jsonl` | Durable successful-tick log for change gates |
+| `measurements/NOTIFY_USER.md` | Optional operator alert file written by the watchdog on notable events |
 
 These are **created at runtime** and are not published as live host state.
 
-## Failure modes (quick)
+## Failure modes
 
 | Symptom | First response |
 |---------|----------------|
 | Supervisor PID dead | Relaunch `launch_long_horizon.ps1` with conservation env |
-| Stuck `running_tick` | Watchdog should relaunch; if not, stop + diagnose logs |
+| Stuck `running_tick` | Watchdog should relaunch; if not, stop and inspect logs |
 | Registry missing | Restore from `backups/`, then continue |
-| Multi-hour stall on manage | Confirm conservation env; do not enable unbounded heavy manage |
+| Multi-hour stall on manage | Confirm conservation env; avoid unbounded heavy manage |
+| Watchdog reported relaunch failure | Confirm whether `long_horizon.pid` is actually alive (slow launches can outlive a short timeout; current watchdog polls for a live PID) |

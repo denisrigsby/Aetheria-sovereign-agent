@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-Operational entry path: health check, optional hygiene/backup, light N-cycle run.
+aetheria_hope_path.py — The real "kickstart": close-gap operational path.
 
-Writes measurements/hope_status.json and a summary artifact.
+1) Canon + health report
+2) Optional registry hygiene
+3) Optional core backup
+4) Detached light N-cycle probe (default 6; use --cycles 12 for full)
+5) Write measurements/hope_status.json + summary
 
 Usage:
-  python -u scripts/aetheria_hope_path.py --cycles 2
-  python -u scripts/aetheria_hope_path.py --cycles 6 --hygiene --backup
+  python -u scripts/aetheria_hope_path.py --cycles 6
+  python -u scripts/aetheria_hope_path.py --cycles 12 --hygiene --backup
   python -u scripts/aetheria_hope_path.py --health-only
 """
 from __future__ import annotations
@@ -171,7 +175,7 @@ exec(compile(src, "grok_supervised_12_probe.py", "exec"), ns)
     outp = ROOT / "measurements" / f"hope_path_summary_{int(time.time())}.json"
     outp.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     write_hope_status({"phase": "hope_summary", "status": "ready", "summary": summary, "summary_path": str(outp)})
-    # Durable resume pointer for outage / new operator session
+    # Durable resume pointer for outage / new Grok session
     try:
         resume = {
             "schema": "aetheria_resume_v1",
@@ -247,12 +251,12 @@ def main():
     try:
         from living.aetheria_canon import append_session_living
         append_session_living({
-            "tag": "ops_note",
+            "tag": "RIGOR_ENFORCED",
             "summary": f"Hope path complete ok={ok} cycles_req={args.cycles} complete={summary.get('cycles_complete')} final_mom={summary.get('final_mom')} log={summary.get('log')}",
             "score": 9.7 if ok else 8.5,
             "phase": "hope_path",
             "payload": summary,
-            "ops_note": True,
+            "RIGOR_ENFORCED": True,
         })
     except Exception:
         pass

@@ -13,16 +13,14 @@
 
 This repository publishes the **control plane**:
 
-- Supervisor / watchdog / hope-path scripts
-- Path helpers and a disposable sandbox edit target
-- Documentation and example status shapes
+- Supervisor, watchdog, measured entry path  
+- Continuity audit and change-control gate evaluator  
+- Path helpers and a disposable sandbox edit target  
+- Documentation and example status shapes  
 
-Scripts import runtime modules that belong to a **complete local Aetheria tree**. You typically either:
+Scripts import runtime modules that belong to a **complete local Aetheria tree**. Overlay this tree onto that root, or copy `scripts/` and `living/` into an existing root.
 
-1. Clone this repo into (or overlay onto) that tree, or  
-2. Copy `scripts/` and `living/` helpers into an existing root.
-
-Without those modules, some imports fail **by design**. The control plane still documents process supervision clearly for review and partial reuse.
+Without those modules, some imports fail **by design**. The control plane remains useful as documentation and partial reuse of supervision patterns.
 
 ## Environment
 
@@ -35,21 +33,24 @@ $env:AETHERIA_META_RECON = "0"
 
 Optional: `AETHERIA_BIN_ROOT`, `AETHERIA_LIVING_PATH`.
 
-## Smoke test
+## Smoke tests
 
 ```powershell
 cd <AETHERIA_ROOT>
 
-# Syntax / structure (works on this repo alone)
+# Structure / syntax (works on this repository alone)
 python -m compileall -q scripts living
 
 # Runtime health (needs full install)
 python -u scripts/aetheria_hope_path.py --health-only
 python -u scripts/aetheria_hope_path.py --cycles 2
+
+# Continuity audit when a plant is present
+python -u scripts/verify_continuity_readonly.py
 ```
 
 ## Next steps
 
-- [docs/OPERATIONS.md](docs/OPERATIONS.md) — start detached schedule + watchdog  
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) — detached schedule and recovery  
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — process model  
-- [docs/INTERNALS.md](docs/INTERNALS.md) — continuity files and change policy  
+- [CHANGELOG.md](CHANGELOG.md) — what changed in each release  

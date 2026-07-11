@@ -1,15 +1,17 @@
 {
   "schema": "aetheria_resume_v1",
-  "updated_at": "2026-07-09T00:00:00+00:00",
+  "updated_at": "2026-07-11T00:00:00+00:00",
   "workspace": "<AETHERIA_ROOT>",
   "phase": "long_horizon",
   "mode": "detached_supervisor",
+  "description": "Optional machine-readable resume pointer for operators. Not required for the supervisor to run.",
   "long_horizon": {
     "status": "idle_between_ticks",
     "tick": 0,
     "cycles_per_tick": 2,
-    "interval_min": 15.0,
-    "max_ticks": 96,
+    "interval_min": 30.0,
+    "max_ticks": 48,
+    "segment_model": "rolling_48",
     "last_ok": true,
     "last_final_mom": null,
     "last_error": null
@@ -18,7 +20,8 @@
     "handoff": "HANDOFF_NEXT_SESSION.md",
     "resume": "RESUME_STATE.json",
     "lh_state": "measurements/long_horizon_state.json",
-    "hope_status": "measurements/hope_status.json"
+    "hope_status": "measurements/hope_status.json",
+    "gate_a_log": "measurements/gate_a_green_ticks.jsonl"
   },
   "env_defaults": {
     "AETHERIA_LIGHT_MANAGE": "1",
@@ -26,14 +29,14 @@
     "AETHERIA_HEAVY_HEALTH_CYCLES": "6,12",
     "AETHERIA_META_RECON": "0"
   },
-  "next_actions": [
-    "Verify supervisor and watchdog processes",
-    "Relaunch with conservation env if dead",
-    "At most one residual change if healthy"
+  "operator_checklist": [
+    "Confirm supervisor and watchdog process liveness",
+    "Relaunch with conservation environment if the supervisor is dead",
+    "Prefer restore-and-continue after host reboot"
   ],
-  "do_not": [
-    "wipe registry without backup",
-    "enable heavy manage every cycle",
-    "parent long runs on an interactive session"
+  "constraints": [
+    "Do not wipe the asset registry without a backup",
+    "Do not enable unbounded heavy manage every cycle",
+    "Do not parent multi-hour runs on an interactive chat session"
   ]
 }

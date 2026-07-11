@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """
-External watchdog for the long-horizon supervisor.
+lh_watchdog.py — External guardian for long_horizon_supervisor.
 
-Monitors process liveness and heartbeat freshness; relaunches on death or stall.
-Writes measurements/watchdog_status.json. Optional operator notify file on incidents.
-Does not wipe registries or merge living memory streams.
+Runs detached. Does NOT attach to Grok chat.
+- Detects dead PID, stale heartbeat, stuck running_tick, completed_max_ticks
+- Relaunches launch_long_horizon.ps1 (or python supervisor) when needed
+- Writes measurements/watchdog_status.json always
+- Writes measurements/NOTIFY_USER.md only on events that need human attention
+- Never wipes registry; never merges living; never kills a healthy supervisor
 
-Stop:  echo stop > measurements/watchdog_STOP
-Usage: python -u scripts/lh_watchdog.py --interval-sec 60
+Stop:
+  echo stop > measurements/watchdog_STOP
+
+Usage:
+  python -u scripts/lh_watchdog.py --interval-sec 60
+  # detached:
+  powershell -File scripts/launch_lh_watchdog.ps1
 """
 from __future__ import annotations
 
@@ -168,36 +176,57 @@ _Auto-written by lh_watchdog. Safe to ignore if already handled. Delete this fil
 
 
 def relaunch_lh(cycles: int = 2, interval_min: float = 30.0, max_ticks: int = 0) -> Tuple[bool, str]:
-    """Relaunch long horizon. max_ticks=0 → unlimited if supervisor supports it."""
+    """Relaunch long horizon. Success = long_horizon.pid alive (P1), not just PS return.
+
+    Default max_ticks=48 rolling segment (P2), not single-PID 200 heroics.
+    """
     if LH_STOP.exists():
         return False, "lh_stop_file_present_not_relaunching"
     launch = ROOT / "scripts" / "launch_long_horizon.ps1"
+    # P2: rolling segment default
+    mt = max_ticks if max_ticks > 0 else 48
+    args = [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(launch),
+        "-Cycles",
+        str(cycles),
+        "-IntervalMin",
+        str(interval_min),
+        "-MaxTicks",
+        str(mt),
+    ]
+    out = ""
+    timed_out = False
     try:
-        # Prefer direct python with unlimited ticks to avoid Stop-Process race issues
-        # but launch script kills old pid — good for dead/stale cases
-        args = [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(launch),
-            "-Cycles",
-            str(cycles),
-            "-IntervalMin",
-            str(interval_min),
-            "-MaxTicks",
-            str(max_ticks if max_ticks > 0 else 200),  # long horizon; 200*30m ≈ 4d
-        ]
-        r = subprocess.run(args, cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+        # P1: allow slow launch; do not treat timeout alone as failure
+        r = subprocess.run(args, cwd=str(ROOT), capture_output=True, text=True, timeout=180)
         out = (r.stdout or "") + (r.stderr or "")
         log(f"relaunch rc={r.returncode} out={out[:400]}")
-        time.sleep(3)
-        pid = read_pid_file()
-        ok = pid is not None and pid_alive(pid)
-        return ok, out[:500] if out else f"rc={r.returncode} pid={pid}"
+    except subprocess.TimeoutExpired as e:
+        timed_out = True
+        out = f"timeout_180s partial={(e.stdout or b'')[:200]!r}"
+        log(f"relaunch powershell timed out (will poll pid): {out[:200]}")
     except Exception as e:
-        return False, str(e)[:400]
+        out = str(e)[:400]
+        log(f"relaunch exception: {out}")
+
+    # P1: poll pid file — success if supervisor is alive
+    detail_parts = [out[:300] if out else ""]
+    if timed_out:
+        detail_parts.append("powershell_timeout_ignored_if_pid_alive")
+    for i in range(40):  # up to ~120s
+        pid = read_pid_file()
+        if pid is not None and pid_alive(pid):
+            msg = f"ok pid={pid} poll={i} max_ticks={mt} " + " ".join(detail_parts)
+            log(f"relaunch success: {msg[:300]}")
+            return True, msg[:500]
+        time.sleep(3)
+    pid = read_pid_file()
+    return False, f"pid_not_alive after launch pid={pid} mt={mt} " + " ".join(detail_parts)[:300]
 
 
 def diagnose() -> Dict[str, Any]:
@@ -281,7 +310,7 @@ def apply_action(diag: Dict[str, Any]) -> Dict[str, Any]:
             f"- tick: {diag.get('tick')}\n"
             f"- reason: {diag.get('reason')}\n"
             f"- Check: `measurements/long_horizon_state.json` and latest `logs/lh_probe_tick*`\n\n"
-            "Watchdog will keep monitoring; a later operator session can inspect status if it persists.",
+            "Watchdog will keep monitoring; Grok will repair on next session if it persists.",
             level="warn",
         )
         result["detail"] = "notified"
@@ -306,7 +335,7 @@ def apply_action(diag: Dict[str, Any]) -> Dict[str, Any]:
                 "Long-horizon relaunch FAILED",
                 f"Watchdog could not relaunch.\n\n- reason: {diag.get('reason')}\n"
                 f"- detail: {detail}\n\n"
-                "Need operator intervention: `powershell -File scripts\\launch_long_horizon.ps1`",
+                "Need human or Grok session: `powershell -File scripts\\launch_long_horizon.ps1`",
                 level="critical",
             )
         return result

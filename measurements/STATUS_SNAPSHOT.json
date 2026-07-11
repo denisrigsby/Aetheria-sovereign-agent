@@ -3,12 +3,16 @@
   "note": "Example only; not live host state.",
   "schedule": {
     "cycles_per_tick": 2,
-    "interval_min": 15
+    "interval_min": 30,
+    "max_ticks_per_segment": 48,
+    "model": "rolling_segments"
   },
   "components": {
-    "light_multicycle": "active",
-    "watchdog": "active",
-    "status_files": "active",
+    "light_multicycle": "stable",
+    "watchdog": "stable",
+    "status_files": "stable",
+    "durable_green_tick_log": "stable",
+    "watchdog_relaunch_pid_truth": "stable",
     "sandbox_guarded_edit": "demonstrated",
     "broad_auto_edit": "incomplete"
   }

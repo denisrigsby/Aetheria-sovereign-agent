@@ -1,4 +1,4 @@
-# Detached long-horizon watchdog process.
+# Detached LH watchdog — survives Grok chat death.
 # Monitors long_horizon_supervisor; relaunches on death/stall; notifies only as needed.
 param(
   [double]$IntervalSec = 60

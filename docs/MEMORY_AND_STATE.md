@@ -4,10 +4,10 @@
 
 | Published in this repo | Private (local only) |
 |------------------------|----------------------|
-| Control-plane scripts | Living memory streams (`personal_living.jsonl`, etc.) |
+| Control-plane scripts | Living memory streams |
 | Path helpers + sandbox target | Live asset registry |
-| Example / sanitized measurements | Host PID files, stop files, live hope/LH state |
-| Docs and templates | Logs, backups, credentials |
+| Example / sanitized measurements and schemas | Host PID files, stop files, live hope/LH state |
+| Docs, changelog, templates | Logs, backups, credentials, operator-private notes |
 
 ## Typical paths (full install)
 

@@ -8,6 +8,7 @@ Operator-facing detail for a full local deployment. Complements the public scrip
 - Watchdog can relaunch after death, stale heartbeat, or stuck `running_tick`  
 - Status files under `measurements/` update with phase and last outcomes  
 - Momentum can persist across process restarts  
+- Durable green-tick log grows on successful ticks  
 - Sandbox guarded edit has produced a real disk change at least once  
 
 **Not claimed complete:** broad autonomous editing of production modules under load.
@@ -25,7 +26,7 @@ Operator-facing detail for a full local deployment. Complements the public scrip
   # cycle probe / orchestrator modules used by the supervisor (local)
 ```
 
-Optional operator continuity templates (examples in `templates/`):
+Optional continuity templates (examples in `templates/`):
 
 - `HANDOFF_NEXT_SESSION.md` — human re-entry notes  
 - `RESUME_STATE.json` — machine-oriented resume pointer  
@@ -33,20 +34,22 @@ Optional operator continuity templates (examples in `templates/`):
 ## Process graph
 
 1. `launch_long_horizon.ps1` starts `long_horizon_supervisor.py` and writes a pid file  
-2. Each tick: health → N-cycle probe → parse completion/momentum → write state → sleep  
-3. `lh_watchdog.py` polls pid and heartbeat; relaunches through the launch script  
+2. Each tick: health → N-cycle probe → record completion/momentum → durable green tick → sleep  
+3. `lh_watchdog.py` polls pid and heartbeat; relaunches through the launch script when needed  
 4. Interactive sessions **read** status files; they do **not** parent the long loop  
 
-Example schedule parameters (not mandatory): `--cycles 2 --interval-min 30 --max-ticks 200`.
+Recommended segment parameters: `--cycles 2 --interval-min 30 --max-ticks 48`.
 
 ## Continuity files
 
-| File | Role |
-|------|------|
+| File | Description |
+|------|-------------|
 | `measurements/long_horizon_state.json` | tick, last_ok, momentum series, heartbeat |
 | `measurements/hope_status.json` | merged status window |
 | `measurements/guidance_momentum.json` | momentum across restarts (when used) |
 | `measurements/watchdog_status.json` | last watchdog diagnosis |
+| `measurements/gate_a_green_ticks.jsonl` | durable successful ticks for change gates |
+| `measurements/gate_a_progress.json` | latest gate-A snapshot from the evaluator |
 | `RESUME_STATE.json` | optional machine resume pointer |
 | `HANDOFF_NEXT_SESSION.md` | optional human re-entry notes |
 
@@ -60,6 +63,7 @@ Use when changing the system:
 4. Status files stay current  
 5. Backup exists before risky registry work  
 6. Guarded edit path can show a verified disk change (sandbox first)  
+7. After a process restart, gate-A progress is not wiped solely because history reset  
 
 ## Guarded edit
 
@@ -78,4 +82,4 @@ Do not aim experimental edits at critical launch entrypoints.
 
 ## Change policy
 
-Promote new behavior into the live path only when checklist items 1–5 hold and the change can be verified in isolation.
+Promote new behavior into the live path only when checklist items hold and the change can be verified in isolation. Prefer rolling segments over single-process heroics for long campaigns.

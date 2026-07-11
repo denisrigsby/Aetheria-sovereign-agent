@@ -1,0 +1,13 @@
+{
+  "schema": "gate_a_progress_v1",
+  "note": "Example only — not live host state. Produced by eval_residual_gate_v2 when a durable green-tick log is present.",
+  "last_residual_ts": "2026-07-01T00:00:00+00:00",
+  "post_residual_green_ticks": 4,
+  "needed": 4,
+  "durable_log": "measurements/gate_a_green_ticks.jsonl",
+  "sources": "history_union_durable_jsonl",
+  "tail": [
+    {"ts": "2026-07-01T01:00:00+00:00", "tick": 1, "src": "durable"},
+    {"ts": "2026-07-01T01:30:00+00:00", "tick": 2, "src": "durable"}
+  ]
+}

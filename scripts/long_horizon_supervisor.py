@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
 """
-Detached long-horizon supervisor for Aetheria.
+long_horizon_supervisor.py — Detached long-horizon Aetheria loop (survives Grok chat death).
 
-Runs light multi-cycle jobs on an interval, persists status, and does not
-require an interactive chat session as the parent process.
+Architecture:
+  [This process, detached]  runs forever (or until stop file / max ticks)
+       |
+       +-- health check
+       +-- light N-cycle probe (hope_path / supervised probe)
+       +-- update hope_status + RESUME_STATE + long_horizon_state.json
+       +-- optional periodic core backup
+       +-- sleep interval
+  [Grok] supervises by reading status files when a session is alive;
+         does NOT need to be parent of this process.
 
-Stop:  echo stop > measurements/long_horizon_STOP
-Usage: python -u scripts/long_horizon_supervisor.py --cycles 2 --interval-min 15 --max-ticks 96
+Stop gracefully:
+  echo stop > measurements/long_horizon_STOP
 
-Env (conservation defaults):
+Usage:
+  python -u scripts/long_horizon_supervisor.py --cycles 2 --interval-min 30 --max-ticks 48
+  # 48 * 30min ≈ 24h of ticks if continuous power
+
+Env (defaults match conservation mode):
   AETHERIA_LIGHT_MANAGE=1
   AETHERIA_SKIP_FINAL_RECON=1
   AETHERIA_HEAVY_HEALTH_CYCLES=6,12
@@ -114,25 +126,19 @@ def write_resume(state: dict) -> None:
             "AETHERIA_HEAVY_HEALTH_CYCLES": "6,12",
             "AETHERIA_META_RECON": "0",
         },
-        "next_actions": [
-            "Read HANDOFF_NEXT_SESSION.md + RESUME_STATE.json + measurements/long_horizon_state.json",
-            "If supervisor dead but wanted: python -u scripts/long_horizon_supervisor.py (or launch_long_horizon.ps1)",
-            "If registry missing: restore from backups/**/sovereign_asset_registry.json",
-            "Operator: read hope_status; only intervene on last_ok=false or stalled ticks",
+        "operator_checklist": [
+            "Read HANDOFF_NEXT_SESSION.md, RESUME_STATE.json, and measurements/long_horizon_state.json when resuming",
+            "If the supervisor is dead and continuity is desired: relaunch scripts/launch_long_horizon.ps1",
+            "If the asset registry is missing: restore from backups/**/sovereign_asset_registry.json",
+            "Inspect hope_status / long_horizon_state; intervene only when last_ok is false or the process is stalled",
         ],
-        "do_not": [
-            "kill supervisor without writing stop file unless emergency",
-            "wipe registry",
-            "heavy manage every cycle",
-            "attach long runs to chat session",
+        "constraints": [
+            "Do not kill the supervisor without a stop file unless emergency",
+            "Do not wipe the registry without a backup",
+            "Do not enable heavy manage every cycle",
+            "Do not parent multi-hour runs on an interactive session",
         ],
-        "user_constraints": "Power/Windows/internet outages expected; supervisor is process-local durable; interactive session is optional",
-        "prompt_seed_for_next_session": (
-            "Read <AETHERIA_BIN>\\HANDOFF_NEXT_SESSION.md, RESUME_STATE.json, "
-            "measurements/long_horizon_state.json, measurements/hope_status.json. "
-            "Long-horizon mode may be running detached. Check PID alive; if dead and user wants continuity, relaunch launch_long_horizon.ps1. "
-            "Do not redesign; maintain conservation; intervene only on failures."
-        ),
+        "notes": "Outages are expected. The supervisor is process-local and durable; interactive sessions are optional.",
     }
     (ROOT / "RESUME_STATE.json").write_text(json.dumps(resume, indent=2), encoding="utf-8")
 
@@ -344,11 +350,11 @@ def main() -> int:
 
         append_session_living(
             {
-                "tag": "ops_note",
-                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached supervisor start; status via hope_status.",
+                "tag": "RIGOR_ENFORCED",
+                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached; Grok supervises via hope_status. RIGOR_ENFORCED.",
                 "score": 9.8,
                 "phase": "long_horizon_start",
-                "ops_note": True,
+                "RIGOR_ENFORCED": True,
             }
         )
     except Exception:
@@ -406,16 +412,40 @@ def main() -> int:
         state["last_probe_log"] = summary.get("log")
         state["last_tick_finished"] = utc_now()
         hist = list(state.get("history") or [])
+        tick_ts = utc_now()
         hist.append(
             {
                 "tick": tick,
                 "ok": summary.get("ok"),
                 "final_mom": summary.get("final_mom"),
-                "ts": utc_now(),
+                "ts": tick_ts,
             }
         )
         state["history"] = hist[-50:]
         state["status"] = "idle_between_ticks" if summary.get("ok") else "degraded"
+        # P0: durable gate-A green ticks survive PID restart
+        try:
+            from scripts.eval_residual_gate_v2 import record_green_tick
+
+            record_green_tick(
+                tick_ts,
+                tick,
+                bool(summary.get("ok")),
+                pid=state.get("pid"),
+            )
+        except Exception:
+            try:
+                # fallback if scripts. package import fails
+                import importlib.util
+
+                _p = ROOT / "scripts" / "eval_residual_gate_v2.py"
+                spec = importlib.util.spec_from_file_location("eval_residual_gate_v2", _p)
+                mod = importlib.util.module_from_spec(spec)
+                assert spec.loader is not None
+                spec.loader.exec_module(mod)
+                mod.record_green_tick(tick_ts, tick, bool(summary.get("ok")), pid=state.get("pid"))
+            except Exception as e:
+                log(f"gate_a durable record note: {e}")
         # Persist mom so next tick subprocess continues ladder (not reset to 0)
         try:
             mom = summary.get("final_mom")
