@@ -88,9 +88,10 @@ Set-Content measurements/long_horizon_STOP "stop"
 Set-Content measurements/watchdog_STOP "stop"
 ```
 
-**Continuity check** (read-only):
+**Status / continuity** (read-only):
 
 ```powershell
+python -u scripts/status_report.py
 python -u scripts/verify_continuity_readonly.py
 ```
 
@@ -110,6 +111,7 @@ docs/           Architecture, operations, internals
 
 | Document | Description |
 |----------|-------------|
+| [docs/WHY.md](docs/WHY.md) | Why this exists — problem, non-goals, success criteria |
 | [SETUP.md](SETUP.md) | Requirements, environment, smoke tests |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Process model and components |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Start, stop, recover, maintenance |

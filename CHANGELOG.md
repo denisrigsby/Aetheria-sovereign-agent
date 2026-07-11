@@ -2,6 +2,17 @@
 
 All notable changes to the **public control plane** are documented here.
 
+## [0.2.1] — 2026-07-11
+
+### Added
+
+- `docs/WHY.md` — problem, non-goals, success criteria (public “why”)  
+- `scripts/status_report.py` — one-screen read-only plant/control-plane status  
+
+### Changed
+
+- README links WHY + status report in quick path  
+
 ## [0.2.0] — 2026-07-11
 
 ### Added
