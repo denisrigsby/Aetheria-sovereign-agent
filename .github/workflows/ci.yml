@@ -22,6 +22,12 @@ jobs:
       - name: Byte-compile published modules
         run: python -m compileall -q scripts living
 
+      # Lint: critical syntax/undefined-name class only (no full-tree style war)
+      - name: Ruff critical checks
+        run: |
+          python -m pip install --quiet ruff
+          ruff check scripts living --select E9,F63,F7,F82 --output-format=github
+
       - name: Required surface present
         run: |
           python - <<'PY'
