@@ -2,6 +2,17 @@
 
 All notable changes to the **public control plane** are documented here.
 
+
+## [Unreleased]
+
+### Added
+
+- Operator hygiene PR propose path (dry-run default; human merge) — see private plant residual `hygiene_pr_propose` / docs when published
+
+### Changed
+
+- (none yet)
+
 ## [0.3.1] - 2026-07-12
 
 ### Added
