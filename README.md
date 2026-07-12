@@ -5,11 +5,26 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Release](https://img.shields.io/github/v/release/denisrigsby/Aetheria-sovereign-agent)](https://github.com/denisrigsby/Aetheria-sovereign-agent/releases)
 
-**Local multi-cycle agent runtime with process supervision, on-disk continuity, and a contracted cycle runner.**
+**Detached ticks. Watchdog recovery. Restart-safe progress. Cloud optional.**
 
-Run bounded autonomous work on a schedule — without using a chat window or IDE session as the parent process. A lightweight supervisor drives ticks, a cycle worker reports success through a structured contract, state lands on disk, and a watchdog recovers from crashes and stalls.
+Local multi-cycle agent **control plane** — process supervision and on-disk continuity so long-running agent work does not die with the chat window that started it.
 
-> Think **supervisor / pm2 for agent work loops**, with restart-safe progress accounting and explicit cycle completion — not log scraping as the primary API.
+> Think **supervisor / pm2 for agent work loops**: hard stop, recovery, structured cycle completion — not another multi-agent framework and not a chat UI.
+
+### The pain this targets
+
+Long-running local agents **hang**, **get stuck**, lose work when the session dies, and often can’t **resume overnight**. “Local” stacks sometimes still surprise you with cloud calls. Frameworks optimize orchestration; few productize a simple **plant clock** under the worker.
+
+### Job #1 — local campaign runner
+
+| Step | What you prove |
+|------|----------------|
+| 1 | `python -u scripts/demo_local_smoke.py` — control plane layout + compile (no private sauce) |
+| 2 | (Full operator root) launch supervisor + watchdog — detached ticks |
+| 3 | `status_report` / measurements — still alive? |
+| 4 | Write `measurements/long_horizon_STOP` — hard stop works |
+
+**Clone alone = Job #1 smoke (step 1).** Full multi-hour plant needs a complete local Aetheria root (cycle body is private by design).
 
 ## Why this exists
 
@@ -28,7 +43,9 @@ Private runtime pieces (orchestrator, living memory, asset registry) stay on the
 
 **Not in this repo (private operator depth):** interactive companion chat, local generative backends, fine-tune / adapter train loops. If present locally, they must **never parent** the long-horizon plant clock.
 
-→ Deep dive: [docs/WHY.md](docs/WHY.md) · [docs/CYCLE_RUNNER.md](docs/CYCLE_RUNNER.md)
+**Sovereign by default, cloud when you allow it** — optional external models/backup/notify are future adapters; they are not required for the control plane to run.
+
+→ Deep dive: [docs/WHY.md](docs/WHY.md) · [docs/CYCLE_RUNNER.md](docs/CYCLE_RUNNER.md) · [docs/MARKET_PAIN.md](docs/MARKET_PAIN.md)
 
 ## Features
 
