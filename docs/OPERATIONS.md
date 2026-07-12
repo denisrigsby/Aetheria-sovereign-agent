@@ -13,6 +13,17 @@ $env:AETHERIA_META_RECON = "0"
 
 Optional path overrides: `AETHERIA_BIN_ROOT`, `AETHERIA_LIVING_PATH`.
 
+## One-screen status (preferred pulse)
+
+```powershell
+cd <AETHERIA_ROOT>
+python -u scripts/status_report.py
+```
+
+Read **segment** tick vs **campaign** mom: a new supervisor PID resets segment tick; mom and durable gate-A continue across processes.
+
+Optional: `python -u scripts/status_report.py --reap-orphans` when idle and orphan workers are wasting RAM (never mid-tick).
+
 ## Short measured run
 
 ```powershell

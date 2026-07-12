@@ -130,10 +130,10 @@ def collect_related_and_orphans(
         "long_horizon_supervisor",
         "lh_watchdog",
         "grok_supervised_12_probe",
+        "residual_autopilot",
         "aetheria_hope_path",
         "hope_path",
         "status_report",
-        "run_probe_bounded",
     )
     for row in _cim_processes():
         cmd = row.get("CommandLine") or ""
@@ -324,8 +324,15 @@ def main() -> int:
         # refresh after reap
         related, orphans = collect_related_and_orphans(lh_status, lh_pid, wd_pid, orphan_min)
 
+    hist = lh.get("history") or []
+    seg_green = sum(
+        1 for h in hist if h.get("ok") is True or str(h.get("ok")) == "True"
+    )
+    mom = lh.get("persisted_mom") or lh.get("last_final_mom") or gm.get("guidance_momentum")
+    gate_post = gate.get("post_residual_green_ticks") or ga.get("post_residual_green_ticks")
+
     report = {
-        "schema": "aetheria_status_report_v2",
+        "schema": "aetheria_status_report_v3",
         "ts": utc(),
         "long_horizon": {
             "pid": lh_pid,
@@ -334,11 +341,35 @@ def main() -> int:
             "max_ticks": lh.get("max_ticks"),
             "status": lh_status,
             "last_ok": lh.get("last_ok"),
-            "mom": lh.get("persisted_mom") or lh.get("last_final_mom") or gm.get("guidance_momentum"),
+            "mom": mom,
             "interval_min": lh.get("interval_min"),
             "heartbeat_at": lh.get("heartbeat_at"),
             "last_tick_finished": lh.get("last_tick_finished"),
             "started_at": lh.get("started_at"),
+        },
+        # Split segment vs campaign so tick reset is not misread as wiped progress
+        "progress": {
+            "segment": {
+                "pid": lh_pid,
+                "tick": lh.get("tick"),
+                "max_ticks": lh.get("max_ticks"),
+                "green_in_this_process": seg_green,
+                "started_at": lh.get("started_at"),
+                "note": "Tick counter is per process. New PID => tick restarts at 1; not a campaign wipe.",
+            },
+            "campaign": {
+                "mom": mom,
+                "guidance_momentum": gm.get("guidance_momentum"),
+                "durable_gate_post_green": gate_post,
+                "gate_A": gate.get("A"),
+                "last_ok": lh.get("last_ok"),
+                "note": "Mom + durable gate-A are continuity across PIDs. Prefer these over segment tick alone.",
+            },
+            "how_to_read": (
+                "If tick looks 'low' after a reset: check progress.campaign.mom and "
+                "durable_gate_post_green, and progress.segment.started_at/pid. "
+                "A reset means a new segment process, not that you failed to understand progress."
+            ),
         },
         "watchdog": {
             "pid": wd_pid,
@@ -357,7 +388,7 @@ def main() -> int:
             "A": gate.get("A"),
             "B": gate.get("B"),
             "C": gate.get("C"),
-            "post": gate.get("post_residual_green_ticks") or ga.get("post_residual_green_ticks"),
+            "post": gate_post,
             "source": gate.get("gate_a_source") or ga.get("sources"),
         },
         "probe_contract": {
@@ -383,8 +414,9 @@ def main() -> int:
             "reaped": reaped,
         },
         "lessons": {
-            "orphan_probe": "Probe finalize can hang after contract ok; kill orphans when LH idle",
+            "orphan_probe": "Cycle finalize can hang after contract ok; kill orphans when LH idle",
             "find_lag": "status_report shows orphan_probes + heavy_procs + cpu/mem",
+            "tick_reset": "Segment tick is per PID; mom + durable gate-A are campaign continuity",
         },
     }
 
@@ -415,11 +447,21 @@ def main() -> int:
         wd = report["watchdog"]
         g = report["gate"]
         pc = report["probe_contract"]
+        seg = report["progress"]["segment"]
+        camp = report["progress"]["campaign"]
         print("Aetheria status")
         print(f"  health:     {report['health']}")
         print(
-            f"  LH:         pid={lh['pid']} alive={lh['alive']} tick={lh['tick']}/{lh['max_ticks']} "
-            f"status={lh['status']} last_ok={lh['last_ok']} mom={lh['mom']}"
+            f"  segment:    pid={seg['pid']} tick={seg['tick']}/{seg['max_ticks']} "
+            f"green_this_process={seg['green_in_this_process']} started={seg['started_at']}"
+        )
+        print(
+            f"  campaign:   mom={camp['mom']} durable_gate_post={camp['durable_gate_post_green']} "
+            f"gate_A={camp['gate_A']} last_ok={camp['last_ok']}"
+        )
+        print(
+            f"  LH:         alive={lh['alive']} status={lh['status']} "
+            f"interval_min={lh['interval_min']}"
         )
         print(
             f"  WD:         pid={wd['pid']} alive={wd['alive']} "
@@ -436,6 +478,9 @@ def main() -> int:
         )
         print(
             f"  stop_files: lh={report['stop_files']['lh_stop']} wd={report['stop_files']['wd_stop']}"
+        )
+        print(
+            "  note:       tick is per-process; mom + durable_gate_post = continuity across PID resets"
         )
         mem = report["resources"]["memory"]
         if mem:

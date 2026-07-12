@@ -26,6 +26,8 @@ Aetheria’s published control plane answers that with:
 
 Private runtime pieces (orchestrator, living memory, asset registry) stay on the operator machine. This repository is the **auditable control plane**.
 
+**Not in this repo (private operator depth):** interactive companion chat, local generative backends, fine-tune / adapter train loops. If present locally, they must **never parent** the long-horizon plant clock.
+
 → Deep dive: [docs/WHY.md](docs/WHY.md) · [docs/CYCLE_RUNNER.md](docs/CYCLE_RUNNER.md)
 
 ## Features
@@ -42,9 +44,10 @@ Private runtime pieces (orchestrator, living memory, asset registry) stay on the
 | **Measured entry path** | `aetheria_hope_path` for health + short runs |
 | **Momentum carry** | Progress signals can continue across restarts |
 | **Conservation defaults** | Light manage + selective heavy health |
-| **Status + resource hygiene** | `status_report` / `resource_check` — orphans, RAM, CPU |
+| **Status + resource hygiene** | `status_report` / `resource_check` — orphans, RAM, CPU, segment vs campaign |
 | **Bounded smoke runner** | `run_probe_bounded` — no unbounded manual probes |
 | **Guarded edit sandbox** | Disposable SafeEdit demo target |
+| **Plant != chat** | Detached ticks; interactive sessions never own the schedule |
 
 ## Architecture
 

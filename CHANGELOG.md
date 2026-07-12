@@ -2,6 +2,23 @@
 
 All notable changes to the **public control plane** are documented here.
 
+## [0.3.1] - 2026-07-12
+
+### Added
+
+- `status_report` **segment vs campaign** progress block (avoids misreading PID/tick reset as wiped progress)
+- Architecture / WHY notes: **plant clock != chat**; optional private companion stays out of this repo
+- OPERATIONS: preferred one-screen status pulse and orphan reap caution
+
+### Changed
+
+- Control-plane scripts refreshed from operator tree with host absolute paths scrubbed
+- README: explicit private-depth boundary (companion / generate not published)
+
+### Security / privacy
+
+- Continues policy: no private living streams, chat ownership, generative train stacks, or host paths in the public surface
+
 ## [0.3.0] — 2026-07-11
 
 ### Added

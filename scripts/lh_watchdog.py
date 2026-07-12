@@ -2,7 +2,7 @@
 """
 lh_watchdog.py — External guardian for long_horizon_supervisor.
 
-Runs detached. Independent of any interactive session.
+Runs detached. Does NOT attach to Grok chat.
 - Detects dead PID, stale heartbeat, stuck running_tick, completed_max_ticks
 - Relaunches launch_long_horizon.ps1 (or python supervisor) when needed
 - Writes measurements/watchdog_status.json always
@@ -310,7 +310,7 @@ def apply_action(diag: Dict[str, Any]) -> Dict[str, Any]:
             f"- tick: {diag.get('tick')}\n"
             f"- reason: {diag.get('reason')}\n"
             f"- Check: `measurements/long_horizon_state.json` and latest `logs/lh_probe_tick*`\n\n"
-            "Watchdog will keep monitoring; repair on next operator session if it persists.",
+            "Watchdog will keep monitoring; Grok will repair on next session if it persists.",
             level="warn",
         )
         result["detail"] = "notified"
@@ -335,7 +335,7 @@ def apply_action(diag: Dict[str, Any]) -> Dict[str, Any]:
                 "Long-horizon relaunch FAILED",
                 f"Watchdog could not relaunch.\n\n- reason: {diag.get('reason')}\n"
                 f"- detail: {detail}\n\n"
-                "Need operator relaunch: `powershell -File scripts\\launch_long_horizon.ps1`",
+                "Need human or Grok session: `powershell -File scripts\\launch_long_horizon.ps1`",
                 level="critical",
             )
         return result

@@ -30,6 +30,7 @@ flowchart TB
     ORCH[Orchestrator / cycle probe]
     REG[Asset registry]
     LIV[Living memory streams]
+    COMP[Optional companion chat / generate - never parents LH]
   end
 
   OP --> TOOLS
@@ -57,6 +58,22 @@ flowchart TB
 | Session tooling | Implement / repair while available | Detached tick schedule |
 | Control plane | Process life cycle, status files, change gates | Private memory contents |
 | Private runtime | Cycles, registry, living streams | Public GitHub distribution |
+| Optional private companion | Interactive steers / local generate | Plant tick schedule, residual self-mod |
+
+## Plant clock ≠ chat session
+
+**Invariant:** interactive chat (any companion or IDE session) must **not** parent long-horizon ticks. The supervisor + watchdog own time. Optional private companion surfaces may read status and append low-signal events; they must not start/stop the plant as a side effect of conversation.
+
+This repository ships the **control plane only**. Companion chat, generative organs, and train loops—if present on an operator machine—stay private and out of this distribution.
+
+## Segment vs campaign progress
+
+`status_report` exposes both:
+
+- **Segment** — per-process tick / green count (resets when a new supervisor PID starts)  
+- **Campaign** — momentum (`mom`) and durable gate-A progress across PIDs  
+
+A low segment tick after relaunch is **not** a campaign wipe.
 
 ## Control-plane components
 

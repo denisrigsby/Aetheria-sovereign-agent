@@ -1,4 +1,4 @@
-# Launch long-horizon Aetheria supervisor DETACHED from interactive sessions.
+# Launch long-horizon Aetheria supervisor DETACHED from Grok chat.
 # Survives reauth; survives closing the terminal if -WindowStyle Hidden.
 param(
   [int]$Cycles = 2,
@@ -62,7 +62,7 @@ state: measurements\long_horizon_state.json
 hope: measurements\hope_status.json
 stop: echo stop > measurements\long_horizon_STOP
 handoff: HANDOFF_NEXT_SESSION.md
-NOTE: Independent of interactive chat/IDE sessions.
+NOTE: Independent of Grok chat. Reauth will NOT kill this.
 "@ | Set-Content "logs\long_horizon_launch_$ts.meta.txt"
 
 Write-Host "LONG_HORIZON_PID=$($proc.Id)"

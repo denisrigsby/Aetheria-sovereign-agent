@@ -124,7 +124,7 @@ def launch_probe(cycles: int) -> dict:
             "status": "running",
             "cycles": cycles,
             "log": str(log),
-            "runner": "cycle_runner_env",
+            "runner": "paradigm_probe_env",
         }
     )
 
@@ -143,7 +143,7 @@ def launch_probe(cycles: int) -> dict:
             stderr=subprocess.STDOUT,
             env=env,
         )
-        print(f"Cycle runner PID={p.pid} log={log} cycles={cycles} timeout={timeout}s mode=env")
+        print(f"Probe PID={p.pid} log={log} cycles={cycles} timeout={timeout}s paradigm=env")
         deadline = time.time() + timeout
         rc = None
         while time.time() < deadline:
@@ -194,7 +194,7 @@ def launch_probe(cycles: int) -> dict:
         "exit_code": rc,
         "log": str(log),
         "cycles_requested": cycles,
-        "runner": "cycle_runner_env",
+        "runner": "paradigm_probe_env",
         "timeout_s": timeout,
     }
     # Dual-read: contract primary, log regex fallback

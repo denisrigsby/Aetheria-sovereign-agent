@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-long_horizon_supervisor.py — Detached long-horizon loop (survives interactive session exit).
+long_horizon_supervisor.py — Detached long-horizon Aetheria loop (survives Grok chat death).
 
 Architecture:
-  [This process, detached]  runs until stop file / max ticks (rolling segment)
+  [This process, detached]  runs forever (or until stop file / max ticks)
        |
        +-- health check
-       +-- light N-cycle runner (contract summary primary; log dual-read fallback)
+       +-- light N-cycle probe (hope_path / supervised probe)
        +-- update hope_status + RESUME_STATE + long_horizon_state.json
-       +-- durable green-tick log for change gates
        +-- optional periodic core backup
        +-- sleep interval
-  Operators inspect status files; they are not the process parent.
+  [Grok] supervises by reading status files when a session is alive;
+         does NOT need to be parent of this process.
 
 Stop gracefully:
   echo stop > measurements/long_horizon_STOP
@@ -110,7 +110,7 @@ def write_resume(state: dict) -> None:
         "workspace": str(ROOT),
         "phase": "long_horizon_autonomous",
         "mode": "long_horizon_supervisor",
-        "north_star": "Durable multi-cycle local agent runtime; conservation defaults; no multi-hour hangs. Outages expected.",
+        "north_star": "Persistent sovereign Aetheria; multi-cycle; co-pilot; careful self-evo; no multi-hour hangs. Outages expected.",
         "long_horizon": state,
         "files": {
             "handoff": "HANDOFF_NEXT_SESSION.md",
@@ -126,20 +126,25 @@ def write_resume(state: dict) -> None:
             "AETHERIA_HEAVY_HEALTH_CYCLES": "6,12",
             "AETHERIA_META_RECON": "0",
         },
-        "operator_checklist": [
-            "Read HANDOFF_NEXT_SESSION.md, RESUME_STATE.json, and measurements/long_horizon_state.json when resuming",
-            "If the supervisor is dead and continuity is desired: relaunch scripts/launch_long_horizon.ps1",
-            "If the asset registry is missing: restore from backups/**/sovereign_asset_registry.json",
-            "Inspect hope_status / long_horizon_state; intervene only when last_ok is false or the process is stalled",
-            "For lag: python -u scripts/status_report.py (orphans + resources); --reap-orphans if idle",
+        "next_actions": [
+            "Read HANDOFF_NEXT_SESSION.md + RESUME_STATE.json + measurements/long_horizon_state.json",
+            "If supervisor dead but wanted: python -u scripts/long_horizon_supervisor.py (or launch_long_horizon.ps1)",
+            "If registry missing: restore from backups/**/sovereign_asset_registry.json",
+            "Grok: read hope_status; only intervene on last_ok=false or stalled ticks",
         ],
-        "constraints": [
-            "Do not kill the supervisor without a stop file unless emergency",
-            "Do not wipe the registry without a backup",
-            "Do not enable heavy manage every cycle",
-            "Do not parent multi-hour runs on an interactive session",
+        "do_not": [
+            "kill supervisor without writing stop file unless emergency",
+            "wipe registry",
+            "heavy manage every cycle",
+            "attach long runs to chat session",
         ],
-        "notes": "Outages are expected. The supervisor is process-local and durable; interactive sessions are optional.",
+        "user_constraints": "Power/Windows/internet outages expected; supervisor is process-local durable; Grok session is optional supervisor UI",
+        "prompt_seed_for_next_grok": (
+            "Read <AETHERIA_ROOT>/HANDOFF_NEXT_SESSION.md, RESUME_STATE.json, "
+            "measurements/long_horizon_state.json, measurements/hope_status.json. "
+            "Long-horizon mode may be running detached. Check PID alive; if dead and user wants continuity, relaunch launch_long_horizon.ps1. "
+            "Do not redesign; maintain conservation; intervene only on failures."
+        ),
     }
     (ROOT / "RESUME_STATE.json").write_text(json.dumps(resume, indent=2), encoding="utf-8")
 
@@ -194,7 +199,7 @@ def run_health() -> dict:
 
 
 def _probe_timeout_s(cycles: int) -> int:
-    """Bounded wall time for cycle runner (loud fail; no multi-hour mystery hang)."""
+    """Bounded wall time for probe (paradigm: loud fail, no multi-hour mystery)."""
     env_abs = os.environ.get("AETHERIA_PROBE_TIMEOUT_S", "").strip()
     if env_abs.isdigit() and int(env_abs) > 0:
         return int(env_abs)
@@ -216,9 +221,9 @@ def _load_probe_contract_summary() -> dict | None:
 
 
 def run_probe_cycles(cycles: int, tick: int) -> dict:
-    """Run cycle worker: env cycle count + contract summary; regex dual-read fallback.
+    """Run paradigm probe: env cycle count + contract summary; regex dual-read fallback.
 
-    Primary: AETHERIA_NUM_CYCLES + local cycle probe script (no source rewrite).
+    Primary: AETHERIA_NUM_CYCLES + grok_supervised_12_probe.py (no source rewrite).
     Parent trusts measurements/lh_probe_summary_latest.json when present.
     """
     ensure_env()
@@ -233,7 +238,7 @@ def run_probe_cycles(cycles: int, tick: int) -> dict:
         "log": str(log_path),
         "ok": False,
         "started": utc_now(),
-        "runner": "cycle_runner_v1",
+        "runner": "paradigm_probe_v1",
     }
     # Clear stale contract so we do not read a previous tick's ok
     contract_path = ROOT / "measurements" / "lh_probe_summary_latest.json"
@@ -377,7 +382,7 @@ def run_probe_cycles(cycles: int, tick: int) -> dict:
                 "error": summary.get("error"),
                 "error_class": summary.get("error_class"),
                 "log_path": str(log_path),
-                "runner": "cycle_runner_v1_parent",
+                "runner": "paradigm_probe_v1_parent",
                 "completion_path": summary.get("completion_path"),
                 "notes": [summary.get("note")] if summary.get("note") else [],
                 "tick": tick,
@@ -472,7 +477,7 @@ def main() -> int:
         append_session_living(
             {
                 "tag": "RIGOR_ENFORCED",
-                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached; operators monitor via hope_status / status_report.",
+                "summary": f"Long-horizon supervisor START pid={pid} cycles/tick={args.cycles} interval_min={args.interval_min} max_ticks={args.max_ticks}. Detached; Grok supervises via hope_status. RIGOR_ENFORCED.",
                 "score": 9.8,
                 "phase": "long_horizon_start",
                 "RIGOR_ENFORCED": True,

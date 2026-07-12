@@ -18,6 +18,7 @@ When that happens, the usual failure modes are:
 | Chat as the parent of multi-hour work | Sessions are not process supervisors |
 | Unbounded full-manage every cycle | Observed multi-hour stall ridge |
 | Publishing private memory/registries | Control plane ≠ whole organism |
+| Publishing optional private companion / local generate / train stacks | Depth stays offline; public surface stays auditable and thin |
 | Multi-tenant SaaS orchestration | This design optimizes for a **sovereign local owner** |
 
 ## What we build instead
