@@ -36,6 +36,20 @@ powershell -File scripts/demo_local.ps1
 
 **Not expected:** Multi-hour plant, chat UI, or private memory. If imports fail for cycle body, that is **by design** until you overlay a full Aetheria root (see [SETUP.md](../SETUP.md)).
 
+**Local only:** this demo is for your machine. No cloud agent parent, no sauce, no private living streams.
+
+---
+
+## Optional: local model (not required for smoke)
+
+The sanitized demo does **not** need a model. If you later run a **private** companion surface on a full operator install and Ollama has no model yet:
+
+```powershell
+ollama pull qwen2.5:14b
+```
+
+That is optional, private-depth tooling — not part of this control-plane smoke.
+
 ---
 
 ## Conservation defaults (if you later run a real plant)

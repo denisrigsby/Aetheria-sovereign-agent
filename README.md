@@ -93,6 +93,8 @@ python -u scripts/demo_local_smoke.py
 Full doc: **[docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md)**.  
 Private depth (if you have a full operator root) must **never** parent the plant from chat.
 
+**Local only / no sauce.** Demo smoke needs Python only. Optional later (private companion, not this smoke): `ollama pull qwen2.5:14b`.
+
 ## Quick start
 
 ```powershell
