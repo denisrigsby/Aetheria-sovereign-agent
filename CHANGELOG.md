@@ -7,11 +7,13 @@ All notable changes to the **public control plane** are documented here.
 
 ### Added
 
-- Operator hygiene PR propose path (dry-run default; human merge) — see private plant residual `hygiene_pr_propose` / docs when published
+- **Sanitized public demo:** `scripts/demo_local_smoke.py`, `scripts/demo_local.ps1`, `Demo-Local.bat`, [docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md)
+- README **Try the local demo** section (clone → smoke without private core)
+- Operator hygiene PR propose path (dry-run default; human merge)
 
 ### Changed
 
-- (none yet)
+- Docs index links PUBLIC_DEMO + HYGIENE
 
 ## [0.3.1] - 2026-07-12
 

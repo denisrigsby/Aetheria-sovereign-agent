@@ -70,6 +70,29 @@ flowchart TB
 | Control plane (this repo) | Schedule, recovery, contracts, status | Private memory contents |
 | Private runtime | Cycle implementation, registry, living streams | Public distribution |
 
+## Try the local demo (sanitized) — start here
+
+**High-signal path for clones:** prove the control plane works locally without private sauce.
+
+```powershell
+git clone https://github.com/denisrigsby/Aetheria-sovereign-agent.git
+cd Aetheria-sovereign-agent
+python -u scripts/demo_local_smoke.py
+# Windows one-click:
+#   Demo-Local.bat
+#   or: powershell -File scripts/demo_local.ps1
+```
+
+| Demo includes | Demo does **not** include |
+|---------------|---------------------------|
+| Layout + compile smoke | Private living streams / registry guts |
+| Example measurement shapes | Companion chat / Ollama surface |
+| Clear plant ≠ chat warnings | Live G4 train / adapters |
+| Soft status import probe | Auto-started multi-hour plant |
+
+Full doc: **[docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md)**.  
+Private depth (if you have a full operator root) must **never** parent the plant from chat.
+
 ## Quick start
 
 ```powershell
@@ -138,12 +161,14 @@ docs/           Why, architecture, cycle runner, operations, internals
 
 | Document | Description |
 |----------|-------------|
+| [docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md) | **Sanitized try-it-now demo** (clones) |
 | [docs/WHY.md](docs/WHY.md) | Problem, non-goals, success criteria |
 | [docs/CYCLE_RUNNER.md](docs/CYCLE_RUNNER.md) | Cycle contract, timeouts, orphan hygiene |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers and components |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Start, stop, recover, maintenance |
 | [docs/INTERNALS.md](docs/INTERNALS.md) | Continuity files and change policy |
 | [docs/MEMORY_AND_STATE.md](docs/MEMORY_AND_STATE.md) | Public vs private boundary |
+| [docs/HYGIENE.md](docs/HYGIENE.md) | Public hygiene PR policy |
 | [SETUP.md](SETUP.md) | Requirements and smoke tests |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | What belongs in PRs |
