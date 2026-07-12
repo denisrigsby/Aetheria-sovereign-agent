@@ -14,6 +14,7 @@ All notable changes to the **public control plane** are documented here.
 ### Changed
 
 - Docs index links PUBLIC_DEMO + HYGIENE
+- PUBLIC_DEMO / README: one-line optional `ollama pull qwen2.5:14b` (not required for smoke)
 
 ## [0.3.1] - 2026-07-12
 
