@@ -7,7 +7,7 @@
 
 **Detached ticks. Identity-checked stop. Manual-start after crash. Restart-safe progress. Cloud optional.**
 
-Standalone product boundary: [docs/STANDALONE_PRODUCT.md](docs/STANDALONE_PRODUCT.md) · state: [docs/STATE_MODEL.md](docs/STATE_MODEL.md) · readiness: [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · install: [docs/INSTALL.md](docs/INSTALL.md) · research: [docs/FRONTIER_EVOLUTION_WORKING_INSTRUCTIONS.md](docs/FRONTIER_EVOLUTION_WORKING_INSTRUCTIONS.md)
+Standalone product boundary: [docs/STANDALONE_PRODUCT.md](docs/STANDALONE_PRODUCT.md) · state: [docs/STATE_MODEL.md](docs/STATE_MODEL.md) · readiness: [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · install: [docs/INSTALL.md](docs/INSTALL.md) · research: [docs/FRONTIER_EVOLUTION_WORKING_INSTRUCTIONS.md](docs/FRONTIER_EVOLUTION_WORKING_INSTRUCTIONS.md) · optional evidence ledger: [docs/PRIME_CONTINUITY.md](docs/PRIME_CONTINUITY.md)
 
 Launcher: `python -u scripts/aetheria.py status|stop|start|resume|recover|diagnose`
 
@@ -92,6 +92,7 @@ Private runtime pieces (orchestrator, living memory, asset registry) stay on the
 | **Bounded smoke runner** | `run_probe_bounded` — no unbounded manual probes |
 | **Guarded edit sandbox** | Disposable SafeEdit demo target |
 | **Plant != chat** | Detached ticks; interactive sessions never own the schedule |
+| **Prime continuity (optional)** | Draft/commit, hash-chained ledger, local search; does **not** start the plant |
 
 ## Architecture
 
@@ -214,6 +215,8 @@ docs/           Why, architecture, cycle runner, operations, internals
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Start, stop, recover, maintenance |
 | [docs/INTERNALS.md](docs/INTERNALS.md) | Continuity files and change policy |
 | [docs/MEMORY_AND_STATE.md](docs/MEMORY_AND_STATE.md) | Public vs private boundary |
+| [docs/PRIME_CONTINUITY.md](docs/PRIME_CONTINUITY.md) | Optional local draft/commit ledger (not the control plane) |
+| [docs/AETHERIA_PRIME_SPEC.md](docs/AETHERIA_PRIME_SPEC.md) | Design spec; FastAPI/React/nodes are **not** shipped |
 | [docs/HYGIENE.md](docs/HYGIENE.md) | Public hygiene PR policy |
 | [SETUP.md](SETUP.md) | Requirements and smoke tests |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
@@ -233,6 +236,7 @@ docs/           Why, architecture, cycle runner, operations, internals
 | Guarded sandbox edit | **Demonstrated** |
 | Broad auto-edit of production modules | **Incomplete** (not claimed) |
 | Private cycle body / living / registry | **Not published** |
+| Prime continuity ledger (optional) | **Shipped thin** (not a web app) |
 
 ## What this repository is not
 

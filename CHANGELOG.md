@@ -7,6 +7,10 @@ All notable changes to the **public control plane** are documented here.
 
 ### Added
 
+- Optional Prime continuity core (draft/commit, hash-chained ledger, local FTS, checkpoint/handoff): `living/prime_continuity.py`, `scripts/prime_continuity.py`, [docs/PRIME_CONTINUITY.md](docs/PRIME_CONTINUITY.md). Does not start the plant. Design spec (not a shipped web app): [docs/AETHERIA_PRIME_SPEC.md](docs/AETHERIA_PRIME_SPEC.md)
+
+### Added
+
 - Arbitrary-path install: [docs/INSTALL.md](docs/INSTALL.md), `python -u scripts/aetheria.py init`, `requirements-dev.lock`
 - Support/rollback/backup: [docs/SUPPORT.md](docs/SUPPORT.md)
 - Frontier evolution instructions and research substrate (`research/`: schemas, five fixed ecologies, local benchmark, bounded population controller)

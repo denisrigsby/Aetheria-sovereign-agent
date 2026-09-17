@@ -38,3 +38,13 @@ Thumbs.db
 
 # Local full bin checkout noise
 _gh_export_aetheria/
+
+# Prime continuity runtime (never publish live ledger/index/drafts)
+measurements/prime/ledger.jsonl
+measurements/prime/search.sqlite
+measurements/prime/search.sqlite-*
+measurements/prime/workspace.json
+measurements/prime/artifacts/
+measurements/prime/drafts/
+measurements/prime/handoffs/
+measurements/prime/checkpoints/
